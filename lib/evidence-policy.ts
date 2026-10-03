@@ -2,10 +2,12 @@ import { createHash } from "node:crypto";
 import type { ConversationTurn } from "../packages/protocol/src/conversation-turn.ts";
 import type { EvidenceEvent, EvidenceKind } from "../packages/protocol/src/evidence-event.ts";
 import type { LearnerItemState } from "../packages/protocol/src/learner-item-state.ts";
-import type { SenseId, TextSpan } from "../packages/protocol/src/comprehension.ts";
+import type { CorrectedLearnerItemRead, ProductionState, ReceptiveState, SenseId, TextSpan } from "../packages/protocol/src/comprehension.ts";
 import type { LexicalGraph } from "../packages/lexical-core/src/graph.ts";
 
 export const EVIDENCE_POLICY_VERSION = "m4-evidence-v1" as const;
+export const CORRECTED_EVIDENCE_POLICY_VERSION = "m5r-evidence-v1" as const;
+export const STATE_DERIVATION_POLICY_VERSION = "m5r-state-v1" as const;
 export type Observation = {
   expression: string; quote: string; start: number; textSource: "text" | "correction";
   behavior: "production" | "comprehension" | "difficulty" | "supplied" | "mention";
@@ -106,7 +108,7 @@ export function deriveItemState(itemId: SenseId, events: readonly EvidenceEvent[
   if (!selected.length) return null;
   const counts: Record<EvidenceKind, number> = { encountered: 0, recognized: 0, help_requested: 0, supplied: 0, assisted_production: 0, spontaneous_production: 0, failed_opportunity: 0, uncertain: 0 };
   for (const event of selected) {
-    if (!["m0-v2", EVIDENCE_POLICY_VERSION].includes(event.policyVersion)) throw new Error("Unsupported Evidence policy version.");
+    if (!["m0-v2", EVIDENCE_POLICY_VERSION, CORRECTED_EVIDENCE_POLICY_VERSION].includes(event.policyVersion)) throw new Error("Unsupported Evidence policy version.");
     counts[event.kind]++;
   }
   const independent = selected.filter(e => e.kind === "spontaneous_production");
@@ -114,5 +116,36 @@ export function deriveItemState(itemId: SenseId, events: readonly EvidenceEvent[
   const stage = independentContextIds.length >= 2 ? "repeated_independent_use" : independent.length ? "spontaneous_production" : counts.assisted_production ? "assisted_production" : counts.recognized ? "understood" : "encountered";
   return { itemId, stage, evidenceIds: selected.map(e => e.id), counts, independentContextIds,
     lastEvidenceAt: selected.at(-1)!.occurredAt, lastSpontaneousAt: independent.at(-1)?.occurredAt ?? null,
-    policyVersion: selected.some(e => e.policyVersion === EVIDENCE_POLICY_VERSION) ? EVIDENCE_POLICY_VERSION : "m0-v2" };
+    policyVersion: selected.some(e => e.policyVersion === CORRECTED_EVIDENCE_POLICY_VERSION) ? CORRECTED_EVIDENCE_POLICY_VERSION : selected.some(e => e.policyVersion === EVIDENCE_POLICY_VERSION) ? EVIDENCE_POLICY_VERSION : "m0-v2" };
+}
+
+/** Versioned compatibility projection; it never mutates or reinterprets stored events. */
+export function deriveCorrectedItemState(itemId: SenseId, events: readonly EvidenceEvent[], stateRevision: string): CorrectedLearnerItemRead {
+  const selected = [...new Map(events.filter(e => e.itemId === itemId).map(e => [e.id, e])).values()];
+  const receptiveEvidenceIds = selected.filter(e => ["encountered", "recognized"].includes(e.kind)).map(e => e.id);
+  const difficulties = selected.filter(e => ["help_requested", "failed_opportunity"].includes(e.kind));
+  let receptive: ReceptiveState = "unobserved";
+  // Ledger order is authoritative, including equal timestamps. Exposure cannot erase difficulty.
+  for (const event of selected) {
+    if (!["m0-v2", "m4-evidence-v1", "m5r-evidence-v1"].includes(event.policyVersion)) throw new Error("Unsupported Evidence policy version.");
+    if (event.kind === "recognized") receptive = "understood";
+    else if (event.kind === "help_requested" && event.difficultyType !== "production") receptive = "needs_support";
+    else if (event.kind === "encountered" && receptive === "unobserved") receptive = "encountered";
+  }
+  const assisted = selected.filter(e => e.kind === "assisted_production");
+  const spontaneous = selected.filter(e => e.kind === "spontaneous_production");
+  const independentContextIds = [...new Set(spontaneous.map(e => e.contextId))];
+  let production: ProductionState = "none";
+  if (independentContextIds.length >= 2) production = "repeated_independent_use";
+  else if (spontaneous.length) production = "spontaneous_production";
+  else if (assisted.length) production = "assisted_production";
+  return {
+    itemId, receptive, production,
+    receptiveEvidenceIds, productionEvidenceIds: [...assisted, ...spontaneous].map(e => e.id),
+    difficultyEvidenceIds: difficulties.map(e => e.id),
+    supportEvidenceIds: selected.filter(e => e.kind === "supplied").map(e => e.id),
+    evidencePolicyVersions: [...new Set(selected.map(e => e.policyVersion))],
+    independentEventIds: spontaneous.map(e => e.id), independentContextIds,
+    stateRevision, derivationPolicyVersion: STATE_DERIVATION_POLICY_VERSION,
+  };
 }

@@ -10,6 +10,6 @@ export async function GET() {
     return reply?.assistantTurn ? [[reply.assistantTurn.id, reply.lookupResults]] : [];
   }));
   return Response.json({ turns, correctionMode: store.correctionMode(), lookupResultsByTurnId,
-    unfinished: unfinished ? { id: unfinished.id, turn: unfinished.turn } : null },
+    unfinished: unfinished ? { id: unfinished.id, turn: unfinished.turn, stages: store.workflowStages(unfinished.id) } : null },
     { headers: { "cache-control": "no-store" } });
 }

@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     if (typeof body !== "object" || body === null) throw new StoreError("Invalid learner read.");
     const value = body as Record<string, unknown>;
     if (value.operation === "get_learner_states") return Response.json(await reads().get_learner_states(value as unknown as LearnerStateBatchRequest));
+    if (value.operation === "get_corrected_learner_states") return Response.json(await reads().get_corrected_learner_states(value as unknown as LearnerStateBatchRequest));
     if (value.operation === "get_item_evidence") return Response.json(await reads().get_item_evidence(value as unknown as ItemEvidenceRequest));
     if (value.operation === "assess_comprehension") return Response.json(await reads().assess_comprehension(value as unknown as AssessComprehensionRequest));
     throw new StoreError("Unknown learner operation.");

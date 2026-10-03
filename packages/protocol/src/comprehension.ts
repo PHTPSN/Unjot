@@ -3,6 +3,7 @@ import type { LearnerItemState } from "./learner-item-state.ts";
 import type { LexicalItem } from "./lexical-item.ts";
 
 export const RESPONSE_CONTRACT_VERSION = "m3-response-v1" as const;
+export const CORRECTED_STATE_CONTRACT_VERSION = "m5r-state-v1" as const;
 export const COMPREHENSION_POLICY_VERSION = "reading-v1" as const;
 export const SEGMENTATION_POLICY_VERSION = "english-units-v1" as const;
 export const COMPLEXITY_POLICY = {
@@ -12,6 +13,8 @@ export const COMPLEXITY_POLICY = {
 } as const;
 export const PERSONAL_READ_LIMITS = { items: 100, evidence: 50, textCharacters: 8000, units: 1000, contextCharacters: 2000 } as const;
 export type SenseId = LexicalItem["id"];
+export type ReceptiveState = "unobserved" | "encountered" | "understood" | "needs_support";
+export type ProductionState = "none" | "assisted_production" | "spontaneous_production" | "repeated_independent_use";
 export type StartingLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 /** First-party conservative seed; not CEFR annotation supplied by OEWN. */
 export const STARTER_SET = {
@@ -76,6 +79,25 @@ export type PersonalItemRead =
   | { itemId: SenseId; status: "unobserved"; state: null; receptiveEvidenceIds: readonly []; productionEvidenceIds: readonly [] }
   | { itemId: SenseId; status: "observed"; state: LearnerItemState; receptiveEvidenceIds: readonly string[]; productionEvidenceIds: readonly string[] };
 export interface LearnerStateBatchResult { contractVersion: typeof RESPONSE_CONTRACT_VERSION; stateRevision: string; items: readonly PersonalItemRead[] }
+export type CorrectedLearnerItemRead = {
+  itemId: SenseId;
+  receptive: ReceptiveState;
+  production: ProductionState;
+  receptiveEvidenceIds: readonly string[];
+  productionEvidenceIds: readonly string[];
+  difficultyEvidenceIds: readonly string[];
+  supportEvidenceIds: readonly string[];
+  evidencePolicyVersions: readonly EvidenceEvent["policyVersion"][];
+  independentEventIds: readonly string[];
+  independentContextIds: readonly string[];
+  stateRevision: string;
+  derivationPolicyVersion: "m5r-state-v1";
+};
+export interface CorrectedLearnerStateBatchResult {
+  contractVersion: typeof CORRECTED_STATE_CONTRACT_VERSION;
+  stateRevision: string;
+  items: readonly CorrectedLearnerItemRead[];
+}
 export interface ItemEvidenceRequest { itemId: SenseId; stateRevision: string; limit?: number; cursor?: string }
 export interface ItemEvidenceResult {
   itemId: SenseId; stateRevision: string; events: readonly EvidenceEvent[];

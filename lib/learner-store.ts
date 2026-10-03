@@ -10,7 +10,9 @@ import type { EvidenceEvent } from "../packages/protocol/src/evidence-event.ts";
 import type { ReplyAnalysis, ResponsePreferences, SenseId } from "../packages/protocol/src/comprehension.ts";
 import { DEFAULT_RESPONSE_PREFERENCES, STARTER_SET, validResponsePreferences } from "../packages/protocol/src/comprehension.ts";
 import type { AssistantReply } from "./chat-types.ts";
-import { deriveItemState, type Decision } from "./evidence-policy.ts";
+import { deriveCorrectedItemState, deriveItemState, type Decision } from "./evidence-policy.ts";
+import type { CorrectedLearnerItemRead } from "../packages/protocol/src/comprehension.ts";
+import { WORKFLOW_VERSION, type StageCheckpoint, type WorkflowStage, type WorkflowStageRecord, type WorkflowStageStatus } from "../packages/protocol/src/workflow.ts";
 
 const turnsTable = sqliteTable("conversation_turn", { sequence: integer("sequence").primaryKey(), id: text("id").notNull(), body: text("body").notNull() });
 
@@ -39,7 +41,7 @@ export class LearnerStore {
     });
     this.sql.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const version = Number(this.sql.prepare("PRAGMA user_version").get()!.user_version);
-    if (version > 1) throw new Error("Learner database is newer than this application.");
+    if (version > 2) throw new Error("Learner database is newer than this application.");
     if (version === 0) this.transaction(() => {
       this.sql.exec(`
         CREATE TABLE settings (key TEXT PRIMARY KEY, body TEXT NOT NULL);
@@ -50,9 +52,14 @@ export class LearnerStore {
         CREATE TABLE learner_item_state (item_id TEXT PRIMARY KEY, revision TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE observation_decision (submission_id TEXT PRIMARY KEY REFERENCES submission(id), body TEXT NOT NULL);
         CREATE TABLE reply_analysis (assistant_turn_id TEXT PRIMARY KEY REFERENCES conversation_turn(id), contract_version TEXT NOT NULL, body TEXT NOT NULL);
-        PRAGMA user_version=1;
+        CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage));
+        PRAGMA user_version=2;
       `);
-      this.setting("device", randomUUID()); this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES); this.setting("correction", false);
+      this.setting("device", randomUUID()); this.setting("conversation-context", randomUUID()); this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES); this.setting("correction", false);
+    });
+    if (version === 1) this.transaction(() => {
+      this.sql.exec("CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage)); PRAGMA user_version=2;");
+      this.sql.prepare("INSERT OR IGNORE INTO settings(key,body) VALUES (?,?)").run("conversation-context", JSON.stringify(randomUUID()));
     });
   }
   close() { this.sql.close(); }
@@ -68,6 +75,7 @@ export class LearnerStore {
   private setting(key: string, value: unknown) { this.sql.prepare("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body").run(key, JSON.stringify(value)); }
   private readSetting<T>(key: string): T { return JSON.parse(String(this.sql.prepare("SELECT body FROM settings WHERE key=?").get(key)!.body)); }
   get deviceId(): string { return this.readSetting("device"); }
+  get contextId(): string { return this.readSetting("conversation-context"); }
   preferences(): ResponsePreferences { return this.readSetting("preferences"); }
   correctionMode(): boolean { return this.readSetting("correction"); }
   savePreferences(patch: Record<string, unknown>): ResponsePreferences {
@@ -92,6 +100,31 @@ export class LearnerStore {
   }
   private insertTurn(turn: ConversationTurn) { this.sql.prepare("INSERT INTO conversation_turn(sequence,id,body) VALUES (?,?,?)").run(turn.sequence, turn.id, JSON.stringify(turn)); }
   private nextSequence(): number { return Number(this.sql.prepare("SELECT COALESCE(MAX(sequence),0)+1 AS n FROM conversation_turn").get()!.n); }
+  private upsertStage(id: string, stage: WorkflowStage, status: WorkflowStageStatus, body: unknown = null) {
+    const previous = this.sql.prepare("SELECT attempt FROM workflow_stage WHERE submission_id=? AND stage=?").get(id, stage) as { attempt?: number } | undefined;
+    const attempt = Number(previous?.attempt ?? 0) + 1;
+    this.sql.prepare("INSERT INTO workflow_stage(submission_id,stage,attempt,status,body,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(submission_id,stage) DO UPDATE SET attempt=excluded.attempt,status=excluded.status,body=excluded.body,updated_at=excluded.updated_at").run(id, stage, attempt, status, JSON.stringify(body), new Date().toISOString());
+  }
+  recordStage(id: string, owner: string, stage: WorkflowStage, status: WorkflowStageStatus, body: unknown = null) {
+    this.transaction(() => { this.checkOwner(id, owner); this.upsertStage(id, stage, status, body); });
+  }
+  checkpoint(id: string, owner: string): StageCheckpoint {
+    return { run: async <T>(stage: "observations_proposed" | "observations_validated", task: () => Promise<T>): Promise<T> => {
+      const saved = this.workflowStages(id).find(s => s.stage === stage && s.status === "accepted");
+      if (saved) return saved.body as T;
+      try {
+        const result = await task();
+        this.recordStage(id, owner, stage, "accepted", result);
+        return result;
+      } catch (error) {
+        this.recordStage(id, owner, stage, "retryable_error", null);
+        throw error;
+      }
+    } };
+  }
+  workflowStages(id: string): WorkflowStageRecord[] {
+    return this.sql.prepare("SELECT submission_id,stage,attempt,status,body,updated_at FROM workflow_stage WHERE submission_id=? ORDER BY rowid").all(id).map(row => ({ version: WORKFLOW_VERSION, submissionId: String(row.submission_id), stage: row.stage as WorkflowStage, attempt: Number(row.attempt), status: row.status as WorkflowStageStatus, reasonCode: row.status === "retryable_error" ? "model_unavailable" : "validated", policyVersion: "m4-evidence-v1", inputRefs: [id], outputRefs: [], body: JSON.parse(String(row.body)), updatedAt: String(row.updated_at) }));
+  }
   getSubmission(id: string): Submission | null {
     const row = this.sql.prepare("SELECT body FROM submission WHERE id=?").get(id);
     return row ? JSON.parse(String(row.body)) : null;
@@ -106,10 +139,12 @@ export class LearnerStore {
         return existing;
       }
       if (this.sql.prepare("SELECT id FROM submission WHERE finished=0 LIMIT 1").get()) throw new StoreError("Retry the unfinished message before sending another.", 409);
-      const turn: ConversationTurn = { id, conversationId: "local-conversation", sequence: this.nextSequence(), role: "learner", contextId: "free-chat", text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
+      const turn: ConversationTurn = { id, conversationId: "local-conversation", sequence: this.nextSequence(), role: "learner", contextId: this.contextId, text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
       const submission: Submission = { id, turn, preferences: this.preferences(), evidenceDone: false, stateRevision: null, reply: null };
       this.insertTurn(turn);
       this.sql.prepare("INSERT INTO submission(id,body) VALUES (?,?)").run(id, JSON.stringify(submission));
+      this.upsertStage(id, "captured", "accepted", { turnId: turn.id, preferences: submission.preferences });
+      this.upsertStage(id, "snapshot_pinned", "accepted", { stateRevision: this.revision(), profileVersion: submission.preferences.profileVersion });
       return submission;
     });
   }
@@ -142,6 +177,7 @@ export class LearnerStore {
       if (s.evidenceDone) return s;
       this.append(decisions.flatMap(d => d.event ? [d.event] : []));
       this.sql.prepare("INSERT INTO observation_decision VALUES (?,?)").run(id, JSON.stringify(decisions));
+      this.upsertStage(id, "evidence_committed", "accepted", { stateRevision: this.revision(), accepted: decisions.filter(d => d.event).length });
       s.evidenceDone = true; s.stateRevision = this.revision(); this.putSubmission(s); return s;
     });
   }
@@ -154,6 +190,10 @@ export class LearnerStore {
       this.insertTurn(savedAssistant);
       this.append(decisions.flatMap(d => d.event ? [d.event] : []));
       if (analysis) this.sql.prepare("INSERT INTO reply_analysis VALUES (?,?,?)").run(assistant.id, analysis.contractVersion, JSON.stringify(analysis));
+      this.upsertStage(id, "reply_generated", "accepted", { assistantTurnId: savedAssistant.id });
+      this.upsertStage(id, "reply_checked", "accepted", { assistantTurnId: savedAssistant.id });
+      this.upsertStage(id, "support_validated", "accepted", { supplied: decisions.filter(d => d.event).length });
+      this.upsertStage(id, "published", "accepted", { assistantTurnId: savedAssistant.id });
       s.reply = { ...reply, assistantTurn: savedAssistant }; this.putSubmission(s); return s.reply;
     });
   }
@@ -177,6 +217,11 @@ export class LearnerStore {
       ? this.sql.prepare(`SELECT item_id,body FROM learner_item_state WHERE item_id IN (${ids.map(() => "?").join(",")})`).all(...ids)
       : this.sql.prepare("SELECT item_id,body FROM learner_item_state ORDER BY item_id LIMIT 100").all();
     return rows.map(row => JSON.parse(String(row.body)));
+  }
+  correctedStates(itemIds: readonly SenseId[] | undefined, revision = this.revision()): CorrectedLearnerItemRead[] {
+    const events = this.evidence(revision);
+    const ids = itemIds?.length ? [...new Set(itemIds)].slice(0, 100) : [...new Set(events.map(e => e.itemId))].slice(-100);
+    return ids.map(id => deriveCorrectedItemState(id, events, revision));
   }
   itemEvidence(itemId: SenseId, limit = 50) {
     if (limit < 1 || limit > 50) throw new StoreError("Evidence limit must be between 1 and 50.");

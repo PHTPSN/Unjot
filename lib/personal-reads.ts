@@ -1,8 +1,8 @@
-import { deriveItemState, validSpan } from "./evidence-policy.ts";
+import { deriveCorrectedItemState, deriveItemState, validSpan } from "./evidence-policy.ts";
 import { StoreError, type LearnerStore } from "./learner-store.ts";
 import type { LexicalGraph } from "../packages/lexical-core/src/graph.ts";
 import { COMPREHENSION_POLICY_VERSION, RESPONSE_CONTRACT_VERSION, STARTER_SET } from "../packages/protocol/src/comprehension.ts";
-import type { AssessComprehensionRequest, ComprehensionAssessment, ItemEvidenceRequest, ItemEvidenceResult, LearnerStateBatchRequest, LearnerStateBatchResult, PersonalItemRead, ResponsePreferences, SenseId } from "../packages/protocol/src/comprehension.ts";
+import type { AssessComprehensionRequest, ComprehensionAssessment, CorrectedLearnerStateBatchResult, ItemEvidenceRequest, ItemEvidenceResult, LearnerStateBatchRequest, LearnerStateBatchResult, PersonalItemRead, ResponsePreferences, SenseId } from "../packages/protocol/src/comprehension.ts";
 
 export class PersonalReads {
   private readonly store: LearnerStore;
@@ -20,6 +20,12 @@ export class PersonalReads {
       items.push(state ? { itemId: id, status: "observed", state, receptiveEvidenceIds: relevant.filter(e => e.kind === "recognized").map(e => e.id), productionEvidenceIds: relevant.filter(e => e.kind.endsWith("production")).map(e => e.id) } : { itemId: id, status: "unobserved", state: null, receptiveEvidenceIds: [], productionEvidenceIds: [] });
     }
     return { contractVersion: RESPONSE_CONTRACT_VERSION, stateRevision: request.stateRevision, items };
+  }
+  async get_corrected_learner_states(request: LearnerStateBatchRequest): Promise<CorrectedLearnerStateBatchResult> {
+    if (!Array.isArray(request.itemIds) || request.itemIds.length > 100 || request.itemIds.some(id => typeof id !== "string" || id.length > 300)) throw new StoreError("Invalid sense batch.");
+    for (const id of new Set(request.itemIds)) if (!await this.graph.getItem(id)) throw new StoreError("Unknown lexical sense.");
+    const items = this.store.correctedStates(request.itemIds, request.stateRevision);
+    return { contractVersion: "m5r-state-v1", stateRevision: request.stateRevision, items };
   }
   async get_item_evidence(request: ItemEvidenceRequest): Promise<ItemEvidenceResult> {
     if (typeof request.itemId !== "string" || !await this.graph.getItem(request.itemId)) throw new StoreError("Unknown lexical sense.");

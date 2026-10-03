@@ -29,5 +29,8 @@ export interface EvidenceEvent {
   /** Actual help adopted for assisted use, not simply the most recent mention. */
   readonly supportTurnId: string | null;
   readonly rationale: string;
-  readonly policyVersion: "m0-v2" | "m4-evidence-v1";
+  readonly policyVersion: "m0-v2" | "m4-evidence-v1" | "m5r-evidence-v1";
+  /** New policies distinguish comprehension difficulty; legacy unspecified help stays historical. */
+  readonly difficultyType?: "comprehension" | "production" | "unspecified";
+  readonly retrievalOpportunityId?: string;
 }
