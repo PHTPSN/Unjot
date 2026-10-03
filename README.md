@@ -48,13 +48,14 @@ The Android and cloud implementations will conform to the same protocol.
 Milestone 0 revision `m0-v2` defines ordinary chat without turn-count gates,
 optional correction mode, and program-controlled Evidence/state updates. The four
 shared TypeScript contracts and ten acceptance examples use one target, `figure out`.
+Milestone 1A resolves OEWN forms to lexical senses and immediate graph neighbors.
 See [Milestone 0: environment, contracts, and acceptance](docs/milestone-0.md)
 and the [development log](docs/DEVELOPMENT_LOG.md).
 
 Run `npm ci --ignore-scripts --no-audit --no-fund`, then `npm run check` with Node.js
-24.13.1 or newer. The checks validate the specification and fixtures; the learning
-engine, chat UI, and model integration are not implemented in this checkpoint.
+24.13.1 or newer. The checks cover the specification, graph adapter, and fixtures;
+the learning engine, chat UI, and model integration are not implemented in this checkpoint.
 
 中文：Milestone 0 的 `m0-v2` 版本规定无轮次门槛的基本聊天、可选修正模式和程序控制的 Evidence/状态更新。
-四个共享 TypeScript 契约和十个验收样例只使用一个目标表达 `figure out`。环境、契约和验收说明见以上链接。
-使用 Node.js 24.13.1 或更高版本执行上述命令。检查验证规格与固定样例；此检查点没有学习引擎、聊天界面或模型接入。
+四个共享 TypeScript 契约和十个验收样例只使用一个目标表达 `figure out`。M1A 支持通过 OEWN 词形查询词义及直接图谱邻居。
+使用 Node.js 24.13.1 或更高版本执行上述命令。检查覆盖规格、图谱适配器和固定样例；此检查点没有学习引擎、聊天界面或模型接入。

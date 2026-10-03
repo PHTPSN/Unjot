@@ -1,5 +1,29 @@
 # Development log
 
+## 2026-10-03 — Milestone 1A graph lookup
+
+Added a small OEWN graph adapter with `findByForm`, `getItem`, and
+`getNeighbors`. It uses the same normalized form keys and 256/4096-way shard
+indices as Language Lab's importer and catalog. The `figure out` acceptance
+lookup resolves through `lex:figure out` to
+`sense:figure_out%2:31:00::`; the adapter returns all senses for a form so
+ordinary lexical ambiguity remains visible.
+
+Focused graph fixtures preserve the source item, definition, sense ID, and
+immediate concept/form/frame/related-sense links. They are test inputs, not a
+replacement for the imported OEWN corpus. `npm run check` passes type checking,
+the M0 specification fixtures, and M1A lookup/neighbor tests (16 tests total).
+
+### 中文
+
+新增轻量 OEWN 图谱适配器，提供 `findByForm`、`getItem` 和 `getNeighbors`。
+它沿用 Language Lab 导入器与目录使用的标准化词形键，以及 256/4096 分片索引。
+`figure out` 查询通过 `lex:figure out` 定位到
+`sense:figure_out%2:31:00::`；接口返回该词形下的全部词义，保留通常的词义歧义。
+
+精简图谱样例保留源词条、释义、词义 ID 及直接关系。这些只是测试输入，
+不会取代导入的完整 OEWN 语料。`npm run check` 通过类型检查和全部 16 项测试。
+
 ## 2026-10-03 — Milestone 0 revision 2
 
 Prepared the Node.js 24.13.1 / npm 11.8.0 development environment with pinned
