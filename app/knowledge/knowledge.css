@@ -1,0 +1,31 @@
+.knowledge-page { max-width: 1280px; margin: auto; padding: 32px; color: #21342e; }
+.knowledge-page nav, .knowledge-page form, .query-examples, .edge-filters { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.knowledge-page nav { justify-content: space-between; margin-bottom: 34px; }
+.knowledge-page h1 { font-size: 36px; margin-bottom: 10px; }
+.knowledge-page p { line-height: 1.65; }
+.knowledge-page h2 { font-size: 21px; }
+.knowledge-page button, .knowledge-page input, .knowledge-page select { border: 1px solid #cbd8cf; border-radius: 8px; padding: 9px 12px; background: white; color: inherit; font: inherit; }
+.knowledge-page button { cursor: pointer; }
+.knowledge-page button:disabled { cursor: wait; opacity: .5; }
+.knowledge-page button:hover:not(:disabled) { background: #edf4ef; }
+.knowledge-page label { display: grid; gap: 6px; font-size: 13px; }
+.knowledge-page form { margin: 24px 0 12px; }
+.knowledge-page form input[type=number] { width: 90px; }
+.knowledge-page form button[type=submit] { background: #254e3d; color: white; }
+.corpus-summary { display: grid; gap: 10px; border-radius: 12px; background: #edf4ef; padding: 20px; margin-top: 24px; }
+.knowledge-page small { display: block; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.knowledge-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 28px; }
+.knowledge-columns section { min-width: 0; }
+.candidate-list, .edge-list { list-style: none; padding: 0; }
+.candidate-list li, .edge-list li { padding: 16px 0; border-bottom: 1px solid #d9e2dc; }
+.candidate-list li > button:first-child { width: 100%; text-align: left; }
+.candidate-list p { font-size: 14px; margin: 10px 0; }
+.knowledge-page code { font-size: 12px; overflow-wrap: anywhere; }
+.edge-list code { display: block; margin-top: 6px; }
+.edge-filters input { width: 145px; }
+.knowledge-page pre { max-height: 450px; overflow: auto; padding: 16px; background: #f5f7f5; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.knowledge-page details { margin-top: 14px; }
+.knowledge-page summary { cursor: pointer; }
+.graph-error { padding: 16px; background: #fff0ed; color: #8c3024; border-radius: 8px; }
+.contract-examples { margin-top: 36px; border-top: 1px solid #d9e2dc; padding-top: 20px; }
+@media (max-width: 750px) { .knowledge-page { padding: 20px; } .knowledge-columns { grid-template-columns: 1fr; } .knowledge-page nav { align-items: start; font-size: 13px; } }

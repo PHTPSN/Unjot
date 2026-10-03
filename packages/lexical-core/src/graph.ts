@@ -50,7 +50,7 @@ export class LexicalGraph {
   async getNode(id: string): Promise<GraphNode | null> {
     if (!id || id.length > 300) return null;
     const shard = await this.read<Record<string, GraphNode>>(`node-${nodeShard(id)}`);
-    return shard[id] ?? null;
+    return Object.hasOwn(shard, id) ? shard[id] : null;
   }
 
   private async getNodes(ids: readonly string[]): Promise<GraphNode[]> {
@@ -59,12 +59,16 @@ export class LexicalGraph {
     return nodes.filter((node): node is GraphNode => node !== null);
   }
 
-  async findByForm(form: string): Promise<LexicalItem[]> {
+  async findSenseIds(form: string): Promise<string[]> {
     const key = normalizeForm(form);
     if (!key) return [];
     const forms = await this.read<Record<string, string[]>>(`forms-${formShard(key)}`);
-    const lexemes = await this.getNodes(forms[key] ?? []);
-    const senses = await this.getNodes(lexemes.flatMap(node => node.children));
+    const lexemes = await this.getNodes(Object.hasOwn(forms, key) ? forms[key] : []);
+    return [...new Set(lexemes.flatMap(node => node.children))].sort();
+  }
+
+  async findByForm(form: string): Promise<LexicalItem[]> {
+    const senses = await this.getNodes((await this.findSenseIds(form)).slice(0, 100));
     return senses.filter(node => node.kind === "sense").map(toLexicalItem);
   }
 
@@ -78,7 +82,7 @@ export class LexicalGraph {
     const node = await this.getNode(id);
     if (!node) return [];
     const neighborIds = [...(node.parent ? [node.parent] : []), ...node.children, ...node.relations.map(relation => relation.target)];
-    return this.getNodes(neighborIds);
+    return this.getNodes([...new Set(neighborIds)].slice(0, 20));
   }
 }
 

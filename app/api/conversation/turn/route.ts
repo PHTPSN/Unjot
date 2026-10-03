@@ -1,7 +1,7 @@
 import type { ChatHistoryEntry } from "../../../../lib/lookup-chat.ts";
 import { createLookupReply } from "../../../../lib/lookup-chat.ts";
 import { readLlmConfig } from "../../../../lib/llm-config.ts";
-import { acceptanceGraph } from "../../../../lib/lexicon.ts";
+import { lexicalGraph } from "../../../../lib/lexicon.ts";
 
 export const runtime = "nodejs";
 
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   try {
     const reply = await createLookupReply({
       config: config.config,
-      graph: acceptanceGraph,
+      graph: lexicalGraph,
       text: body.text,
       correctionMode: body.correctionMode,
       history,

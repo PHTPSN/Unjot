@@ -44,6 +44,7 @@ export default function ConversationPage() {
           <span>unjot</span>
         </a>
         <div className="topbar-meta">
+          <a href="/knowledge">Knowledge graph</a>
           <span className={`connection-dot ${modelStatus.configured ? "ready" : "not-ready"}`} />
           <span>{modelStatus.configured ? `${modelStatus.provider} · ${modelStatus.model}` : "Model setup needed"}</span>
         </div>

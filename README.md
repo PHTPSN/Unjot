@@ -74,8 +74,21 @@ Use Node.js 24.13.1 or newer. One root check covers the shared contracts, graph 
 acceptance fixtures, and Web interactions. M2 adds a server-side OpenAI-compatible
 model route with read-only lexical tools. Live API access, `figure out` tool
 lookup, and browser error/retry behavior passed with the configured provider.
-Its graph contains only the verified `figure out` sample;
-the full OEWN corpus and Evidence engine are later milestones.
+M3 includes the complete pinned OEWN 2025 graph. The beta inspection page at
+`/knowledge` exposes sense candidates and directed stored relations. Evidence
+validation and personal persistence are the next milestones.
+
+The generated graph ships in `public/graph-data/oewn-2025`; a clean checkout needs
+no download. Run `npm run graph:verify` to check its counts and references.
+To regenerate it, download the OEWN 2025 core JSON archive from
+https://en-word.net/downloads, extract its JSON files into
+`.local/graph-source/oewn-2025`, and place the original archive at
+`.local/graph-source/english-wordnet-2025-json.zip`. Run `npm run graph:import`
+then `npm run graph:verify`. The importer rejects archives whose SHA-256 differs
+from the pinned manifest. Alternative extracted-directory and archive paths can
+be passed as the first and second arguments after `npm run graph:import --`.
+Source attribution, CC BY 4.0 license, transformations and coverage limitations
+are recorded in the shipped manifest.
 
 To run the chat shell locally:
 
@@ -100,4 +113,6 @@ Evidence/状态更新。四个共享 TypeScript 契约和十个验收样例只�
 Milestone 1A 已支持通过 OEWN 词形查询词义及其直接图谱邻居。环境、字段和验收说明见上面的文档。
 使用 Node.js 24.13.1 或更高版本，在仓库根目录执行上述命令。统一检查覆盖契约、图谱适配器、固定样例和 Web 交互。
 M2 已实现服务端模型路由与只读词汇工具，真实 API 访问、`figure out` 工具查询以及浏览器错误/重试行为已通过。学习者状态推导和 Evidence 引擎尚未实现，
-查询图谱目前仅包含已验证的 `figure out` 小型样例。按英文部分在此仓库根目录创建 `.env`，填写 provider、model、API key 和 base URL；密钥只由本地服务端读取。
+M3 已附带完整 OEWN 2025 图谱，测试版 `/knowledge` 入口展示词义候选及有方向的已保存关系。
+干净检出后无需下载图谱，运行 `npm run graph:verify` 验证数据。重新生成时按英文说明下载、解压固定版本源文件并运行导入与验证；导入程序检查原始压缩包的 SHA-256。来源、许可、转换说明和覆盖限制保存在 manifest 中。
+按英文部分在此仓库根目录创建 `.env`，填写 provider、model、API key 和 base URL；密钥只由本地服务端读取。

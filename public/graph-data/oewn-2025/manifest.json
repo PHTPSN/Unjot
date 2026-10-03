@@ -1,0 +1,36 @@
+{
+  "version": "oewn-2025",
+  "source": "Open English WordNet 2025 core",
+  "sourceUrl": "https://en-word.net/downloads",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "sha256": "7d749f6e2c39e6970e4997839dcf6e42fd281f3c2fae0171d2192bae8cfa4b51",
+  "attribution": "Open English WordNet Community, derived from Princeton WordNet. https://github.com/globalwordnet/english-wordnet/blob/main/AUTHORS.md",
+  "transformations": [
+    "Reindexed as concepts, individual lexical senses, normalized word forms, and syntactic frames.",
+    "Added navigation groups and inverse edges. No learner weights are part of the source ontology.",
+    "Case-folded form lookup; original sense IDs, definitions, examples, and source relations preserved."
+  ],
+  "counts": {
+    "lexicalEntries": 135969,
+    "lexemes": 127311,
+    "senses": 185129,
+    "concepts": 107519,
+    "sourceRelations": 244727,
+    "frames": 39,
+    "nodes": 420050
+  },
+  "coverage": {
+    "included": [
+      "All lexical entries, senses, semantic and lexical relations in the pinned core JSON release",
+      "Inflected forms and pronunciations supplied by the source",
+      "All supplied verb-complement frames"
+    ],
+    "missing": [
+      "Complete grammar and productive constructions",
+      "Comprehensive idioms, collocations, function words, and emerging vocabulary",
+      "Pragmatics, discourse, listening, and pronunciation assessment",
+      "Context-conditioned frequency baselines"
+    ]
+  }
+}

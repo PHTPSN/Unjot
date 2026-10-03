@@ -1,5 +1,15 @@
 # Development log
 
+## 2026-10-03 — M3 full graph and contracts
+
+Created branch `feat/m3-knowledge-graph-contracts`. The Web repository now carries the pinned OEWN 2025 generated assets (420,050 nodes, 185,129 senses, 244,727 source relations, 4,353 shards) with the source archive hash, license and attribution in the manifest. The importer preserves the existing `figure out` identity and stable source IDs; `npm run graph:verify` checks shard placement, counts, forms and dangling targets.
+
+The read-only knowledge API exposes `resolve_expression_candidates`, `get_knowledge_node` and `get_knowledge_neighborhood`. Reads are bounded, cursor-paginated and retain ambiguity, missing coverage, typed directed edges, navigation-vs-semantic provenance, and loader failures. `/knowledge` provides browser inspection for `bank`, inflections, multiword expressions, stored relations and the versioned source manifest.
+
+Protocol `m3-response-v1` freezes response preferences, English-unit segmentation, the conservative starter set, complexity limits, personal batch-read shapes, comprehension assessments, response plans and delivered reply analysis. Fixtures deliberately distinguish a known sense from a known word, receptive support from production, provisional estimates from accepted Evidence, and `unobserved` personal state from missing graph coverage. M4 will implement trusted personal Evidence reads and assessment; M6 will implement final-text budget arithmetic and checked replies.
+
+Validation: `npm run check` passes 35 tests and TypeScript checking; `npm run graph:verify` reports zero dangling targets; `npm run build` passes; local HTTP smoke checks return real `bank` ambiguity and directed neighborhood data. Browser inspection confirmed the 420,050-node manifest, 18 `bank` candidates, and stored relations. No commit or push was made.
+
 ## 2026-10-03 — M2 browser error and retry acceptance passed
 
 An isolated browser tab used a temporary local proxy to inject one application

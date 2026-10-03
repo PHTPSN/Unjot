@@ -89,7 +89,7 @@ export async function createLookupReply(options: {
       content: [
         "You are Unjot, a language-learning conversation partner.",
         "When the learner asks about an English word or expression, use find_by_form before explaining it. Base lexical facts only on tool results; do not invent definitions or relations.",
-        "The local acceptance lexicon is a small verified OEWN sample, not a complete dictionary. Say when no local match is found.",
+        "The local lexicon is the complete pinned OEWN 2025 core. It has limited coverage of grammar, collocations and emerging vocabulary. Say when no local match is found; multiple senses remain candidates, not a selected meaning.",
         "Never claim to change learner mastery or state. No state-writing tools exist.",
         `Correction mode is ${options.correctionMode ? "on" : "off"}. When it is on and correction is useful, return it separately through finish_response; never rewrite the learner's stored original.`,
         "Use finish_response for the final answer after tool results are available.",
@@ -198,7 +198,9 @@ async function executeLookup(name: string, args: Record<string, unknown>, graph:
   }
   if (name === "get_neighbors" && typeof args.id === "string" && args.id.length <= 300) {
     const id = args.id;
-    const result: GraphNode[] = await graph.getNeighbors(id);
+    const result: GraphNode[] = (await graph.getNeighbors(id)).map(node => ({
+      ...node, childCount: node.children.length, children: node.children.slice(0, 20), relations: node.relations.slice(0, 20),
+    }));
     return { value: result.slice(0, 20), trace: { tool: name, id, result: result.slice(0, 20) } };
   }
   return { value: { error: "Unsupported tool or invalid arguments." } };
