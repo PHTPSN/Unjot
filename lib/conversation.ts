@@ -2,6 +2,7 @@ import type { ConversationTurn } from "../packages/protocol/src/conversation-tur
 import type { AssistantReply } from "./chat-types.ts";
 
 export type TurnSubmission = {
+  readonly submissionId: string;
   readonly turn: ConversationTurn;
   readonly correctionMode: boolean;
   readonly history: readonly ConversationTurn[];
@@ -11,6 +12,15 @@ export type Reply = {
   readonly text: string;
   readonly correction: string | null;
   readonly lookupResults?: AssistantReply["lookupResults"];
+  readonly assistantTurn?: ConversationTurn;
+  readonly learnerTurn?: ConversationTurn;
+};
+
+export type SavedConversation = {
+  turns: readonly ConversationTurn[];
+  correctionMode: boolean;
+  lookupResultsByTurnId: ConversationState["lookupResultsByTurnId"];
+  unfinished: { id: string; turn: ConversationTurn } | null;
 };
 
 export type MockReply = Reply;
@@ -62,13 +72,25 @@ export class ConversationController {
     this.update({ correctionMode });
   }
 
+  restore(saved: SavedConversation): void {
+    if (this.state.pending) return;
+    this.retrySubmission = saved.unfinished ? {
+      submissionId: saved.unfinished.id, turn: saved.unfinished.turn,
+      correctionMode: saved.unfinished.turn.correctionMode,
+      history: saved.turns.filter(t => t.sequence < saved.unfinished!.turn.sequence),
+    } : null;
+    this.update({ turns: saved.turns, correctionMode: saved.correctionMode,
+      lookupResultsByTurnId: saved.lookupResultsByTurnId,
+      error: saved.unfinished ? "Your saved message needs a reply. Retry when ready." : null });
+  }
+
   async send(text: string): Promise<boolean> {
-    if (this.state.pending || !text.trim()) return false;
+    if (this.state.pending || this.retrySubmission || !text.trim()) return false;
 
     const learnerTurn: ConversationTurn = {
       id: this.createId(),
       conversationId: "local-conversation",
-      sequence: this.state.turns.length + 1,
+      sequence: (this.state.turns.at(-1)?.sequence ?? 0) + 1,
       role: "learner",
       contextId: "free-chat",
       text,
@@ -78,6 +100,7 @@ export class ConversationController {
       correction: null,
     };
     const submission = {
+      submissionId: learnerTurn.id,
       turn: learnerTurn,
       correctionMode: this.state.correctionMode,
       history: this.state.turns,
@@ -103,7 +126,7 @@ export class ConversationController {
       return false;
     }
 
-    const assistantTurn: ConversationTurn = {
+    const assistantTurn: ConversationTurn = reply.assistantTurn ?? {
       id: this.createId(),
       conversationId: submission.turn.conversationId,
       sequence: this.state.turns.length + 1,
@@ -111,7 +134,7 @@ export class ConversationController {
       contextId: submission.turn.contextId,
       text: reply.text,
       occurredAt: this.now(),
-      suppliedItemIds: reply.correction ? ["sense:figure_out%2:31:00::"] : [],
+      suppliedItemIds: [],
       correctionMode: submission.correctionMode,
       correction: reply.correction
         ? { sourceTurnId: submission.turn.id, text: reply.correction }
@@ -119,7 +142,7 @@ export class ConversationController {
     };
     this.retrySubmission = null;
     this.update({
-      turns: [...this.state.turns, assistantTurn],
+      turns: [...this.state.turns.map(t => t.id === reply.learnerTurn?.id ? reply.learnerTurn : t), assistantTurn],
       pending: false,
       error: null,
       lookupResultsByTurnId: {
@@ -178,12 +201,8 @@ export function createApiReplyProvider(fetcher: typeof fetch = fetch): ReplyProv
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         text: submission.turn.text,
+        submissionId: submission.submissionId,
         correctionMode: submission.correctionMode,
-        history: submission.history.map(turn => ({
-          role: turn.role,
-          text: turn.text,
-          correction: turn.correction?.text ?? null,
-        })),
       }),
     });
     const payload = await response.json() as {
@@ -198,6 +217,8 @@ export function createApiReplyProvider(fetcher: typeof fetch = fetch): ReplyProv
       text: payload.assistantMessage.text,
       correction: payload.assistantMessage.correction ?? null,
       lookupResults: payload.assistantMessage.lookupResults ?? [],
+      assistantTurn: payload.assistantMessage.assistantTurn,
+      learnerTurn: payload.assistantMessage.learnerTurn,
     };
   };
 }

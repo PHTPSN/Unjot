@@ -10,6 +10,7 @@ export type AssistantReply = {
   readonly text: string;
   readonly correction: string | null;
   readonly lookupResults: readonly LexicalToolResult[];
+  readonly assistantTurn?: import("../packages/protocol/src/conversation-turn.ts").ConversationTurn;
 };
 
 export type PublicModelStatus = {

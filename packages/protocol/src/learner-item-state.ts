@@ -19,5 +19,5 @@ export interface LearnerItemState {
   readonly independentContextIds: readonly string[];
   readonly lastEvidenceAt: string;
   readonly lastSpontaneousAt: string | null;
-  readonly policyVersion: "m0-v2";
+  readonly policyVersion: "m0-v2" | "m4-evidence-v1";
 }

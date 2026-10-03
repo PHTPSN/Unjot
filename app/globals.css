@@ -126,6 +126,27 @@ h1 { margin: 4px 0 0; font-size: 23px; line-height: 1.3; font-weight: 620; }
 .send-button:disabled { color: #aebbb6; background: #edf0ee; cursor: default; }
 .privacy-note { display: flex; justify-content: center; align-items: center; gap: 5px; margin: 10px 0 16px; color: #9aa5a1; font-size: 10px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.learning-page { width: min(860px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 60px; }
+.learning-page nav { display: flex; justify-content: space-between; margin-bottom: 42px; color: var(--muted); font-size: 12px; }
+.learning-page nav a { color: var(--teal); }
+.learning-page h1 { margin-bottom: 10px; }
+.learning-page > p { color: var(--muted); }
+.revision { font-size: 12px; }
+.evidence-item { margin-top: 24px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.evidence-item h2 { margin: 0 0 7px; font-size: 14px; overflow-wrap: anywhere; }
+.evidence-item p { color: var(--muted); }
+.evidence-item details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.evidence-item summary { cursor: pointer; color: var(--teal-deep); font-size: 13px; }
+.evidence-item small { color: var(--muted); }
+.response-settings { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.response-settings summary { cursor: pointer; color: var(--teal); }
+.response-settings p { color: var(--muted); max-width: 65ch; }
+.response-settings fieldset { border: 0; padding: 0; display: flex; align-items: end; flex-wrap: wrap; gap: 16px; }
+.response-settings label { display: grid; gap: 6px; }
+.response-settings input, .response-settings select, .response-settings button { padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink); }
+.response-settings .setting-checkbox { display: flex; align-items: center; padding-bottom: 8px; }
+.response-settings button { cursor: pointer; color: var(--teal); }
+.topbar-meta { flex-wrap: wrap; }
 
 @media (max-width: 600px) {
   .topbar { height: 58px; padding: 0 16px; }

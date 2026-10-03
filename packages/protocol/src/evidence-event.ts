@@ -29,5 +29,5 @@ export interface EvidenceEvent {
   /** Actual help adopted for assisted use, not simply the most recent mention. */
   readonly supportTurnId: string | null;
   readonly rationale: string;
-  readonly policyVersion: "m0-v2";
+  readonly policyVersion: "m0-v2" | "m4-evidence-v1";
 }

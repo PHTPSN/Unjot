@@ -5,13 +5,29 @@ import type { FormEvent, KeyboardEvent } from "react";
 import { ArrowUp, Bot, Check, LoaderCircle, MessageSquareText, RotateCcw, Sparkles } from "lucide-react";
 import type { LexicalToolResult, PublicModelStatus } from "../lib/chat-types.ts";
 import { ConversationController, createApiReplyProvider } from "../lib/conversation.ts";
+import { ResponseSettings } from "./response-settings.tsx";
 
 export default function ConversationPage() {
   const controller = useMemo(() => new ConversationController(createApiReplyProvider()), []);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const [draft, setDraft] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [savingCorrection, setSavingCorrection] = useState(false);
+  const [settingError, setSettingError] = useState("");
   const [modelStatus, setModelStatus] = useState<PublicModelStatus>({ configured: false, provider: null, model: null });
   const messagesEnd = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/conversation").then(async response => {
+      if (!response.ok) throw new Error("Could not load saved conversation. Reload to retry.");
+      const saved = await response.json();
+      if (active) { controller.restore(saved); setLoaded(true); }
+    }).catch(e => { if (active) setLoadError(e.message); });
+    return () => { active = false; };
+  }, [controller]);
 
   useEffect(() => {
     void fetch("/api/status")
@@ -22,12 +38,22 @@ export default function ConversationPage() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (state.pending || !draft.trim()) return;
+    if (!loaded || savingSettings || savingCorrection || state.pending || state.error || !draft.trim()) return;
     const sending = controller.send(draft);
     setDraft("");
     await sending;
     messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   };
+
+  async function saveCorrection(correctionMode: boolean) {
+    setSavingCorrection(true); setSettingError("");
+    try {
+      const response = await fetch("/api/response-preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ correctionMode }) });
+      if (!response.ok) throw new Error("Could not save correction preference. Try again.");
+      controller.setCorrectionMode(correctionMode);
+    } catch (e) { setSettingError(e instanceof Error ? e.message : "Could not save correction preference."); }
+    finally { setSavingCorrection(false); }
+  }
 
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -45,9 +71,11 @@ export default function ConversationPage() {
         </a>
         <div className="topbar-meta">
           <a href="/knowledge">Knowledge graph</a>
+          <a href="/learning">Learning evidence</a>
           <span className={`connection-dot ${modelStatus.configured ? "ready" : "not-ready"}`} />
           <span>{modelStatus.configured ? `${modelStatus.provider} · ${modelStatus.model}` : "Model setup needed"}</span>
         </div>
+
       </header>
 
       <section className="conversation" id="conversation" aria-labelledby="conversation-title">
@@ -60,8 +88,11 @@ export default function ConversationPage() {
           </div>
         </div>
 
+        <ResponseSettings onSaving={setSavingSettings} />
+        {!loaded && <p role="status">{loadError || "Loading saved conversation…"}</p>}
+        {settingError && <p role="alert">{settingError}</p>}
         <div className="message-list" aria-live="polite" aria-busy={state.pending}>
-          {state.turns.length === 0 && !state.pending && (
+          {loaded && state.turns.length === 0 && !state.pending && (
             <div className="empty-state">
               <div className="empty-icon"><Sparkles size={20} /></div>
               <p>What would you like to talk about?</p>
@@ -127,7 +158,8 @@ export default function ConversationPage() {
                 className="switch-input"
                 type="checkbox"
                 checked={state.correctionMode}
-                onChange={event => controller.setCorrectionMode(event.target.checked)}
+                disabled={!loaded || savingCorrection || savingSettings}
+                onChange={event => void saveCorrection(event.target.checked)}
               />
               <span className="switch-track"><span /></span>
               <span>Correction</span>
@@ -137,7 +169,7 @@ export default function ConversationPage() {
               <button
                 className="send-button"
                 type="submit"
-                disabled={state.pending || !draft.trim()}
+                disabled={!loaded || savingSettings || savingCorrection || state.pending || !!state.error || !draft.trim()}
                 aria-label="Send message"
                 title="Send message"
               >

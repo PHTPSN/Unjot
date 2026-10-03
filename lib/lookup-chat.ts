@@ -2,6 +2,8 @@ import type { LexicalGraph, GraphNode } from "../packages/lexical-core/src/graph
 import type { LexicalItem } from "../packages/protocol/src/lexical-item.ts";
 import type { AssistantReply, LexicalToolResult } from "./chat-types.ts";
 import type { LlmConfig } from "./llm-config.ts";
+import type { PersonalReads } from "./personal-reads.ts";
+import type { AssessComprehensionRequest, SenseId } from "../packages/protocol/src/comprehension.ts";
 
 type ChatMessage = Record<string, unknown>;
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
@@ -78,6 +80,8 @@ export async function createLookupReply(options: {
   correctionMode: boolean;
   history: readonly ChatHistoryEntry[];
   fetcher?: typeof fetch;
+  personal?: PersonalReads;
+  stateRevision?: string;
 }): Promise<AssistantReply> {
   const fetcher = options.fetcher ?? fetch;
   const endpoint = options.config.baseUrl.endsWith("/chat/completions")
@@ -91,6 +95,10 @@ export async function createLookupReply(options: {
         "When the learner asks about an English word or expression, use find_by_form before explaining it. Base lexical facts only on tool results; do not invent definitions or relations.",
         "The local lexicon is the complete pinned OEWN 2025 core. It has limited coverage of grammar, collocations and emerging vocabulary. Say when no local match is found; multiple senses remain candidates, not a selected meaning.",
         "Never claim to change learner mastery or state. No state-writing tools exist.",
+        ...(options.personal ? [
+          `Captured response preferences: ${JSON.stringify(options.personal.preferences)}. Honor Chinese support and explicit Chinese requests. These preferences do not imply measured proficiency; strict final novelty-budget enforcement arrives in M6.`,
+          `Personal state revision: ${options.stateRevision}. Use personal read tools to inspect evidence and comprehension when useful. Exposure and generated explanations do not prove understanding.`,
+        ] : []),
         `Correction mode is ${options.correctionMode ? "on" : "off"}. When it is on and correction is useful, return it separately through finish_response; never rewrite the learner's stored original.`,
         "Use finish_response for the final answer after tool results are available.",
       ].join(" "),
@@ -117,7 +125,7 @@ export async function createLookupReply(options: {
       body: JSON.stringify({
         model: options.config.model,
         messages,
-        tools,
+        tools: options.personal ? [...tools, ...personalTools] : tools,
         tool_choice: "auto",
         temperature: 0.4,
       }),
@@ -153,6 +161,17 @@ export async function createLookupReply(options: {
         continue;
       }
 
+      if (options.personal && personalTools.some(t => t.function.name === call.function.name)) {
+        let value: unknown;
+        try {
+          if (call.function.name === "get_response_profile") value = options.personal.preferences;
+          else if (call.function.name === "get_learner_states") value = await options.personal.get_learner_states({ itemIds: args.itemIds as SenseId[], stateRevision: options.stateRevision! });
+          else if (call.function.name === "get_item_evidence") value = await options.personal.get_item_evidence({ itemId: args.itemId as SenseId, stateRevision: options.stateRevision!, limit: args.limit as number | undefined });
+          else value = await options.personal.assess_comprehension({ ...args, modality: "reading", stateRevision: options.stateRevision!, profileVersion: options.personal.preferences.profileVersion, policyVersion: "reading-v1" } as unknown as AssessComprehensionRequest);
+        } catch { value = { error: "Personal read unavailable or invalid arguments. Do not infer understanding." }; }
+        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(value) });
+        continue;
+      }
       const result = await executeLookup(call.function.name, args, options.graph);
       if (result.trace) lookupResults.push(result.trace);
       messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.value) });
@@ -163,6 +182,13 @@ export async function createLookupReply(options: {
 
   throw new Error("Model did not finish the response within the lexical tool-call limit.");
 }
+
+const personalTools = [
+  { name: "get_response_profile", description: "Read captured reply preferences; no writes.", properties: {}, required: [] },
+  { name: "get_learner_states", description: "Read personal state for up to 100 exact sense IDs.", properties: { itemIds: { type: "array", maxItems: 100, items: { type: "string" } } }, required: ["itemIds"] },
+  { name: "get_item_evidence", description: "Inspect accepted observations for one exact sense ID.", properties: { itemId: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 } }, required: ["itemId"] },
+  { name: "assess_comprehension", description: "Estimate reading support for contextual English units. Each unit needs span {start,end}, text, candidateIds, selected itemId or null, unresolvedReason or null. Meaning selection must fit context.", properties: { text: { type: "string" }, context: { type: "string" }, units: { type: "array", maxItems: 1000, items: { type: "object", properties: { span: { type: "object", properties: { start: { type: "integer" }, end: { type: "integer" } }, required: ["start", "end"] }, text: { type: "string" }, candidateIds: { type: "array", items: { type: "string" } }, itemId: { type: ["string", "null"] }, unresolvedReason: { type: ["string", "null"] } }, required: ["span", "text", "candidateIds", "itemId", "unresolvedReason"] } } }, required: ["text", "context", "units"] },
+].map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: { type: "object", properties: t.properties, required: t.required, additionalProperties: false } } }));
 
 function parseToolCalls(value: unknown): ToolCall[] {
   if (!Array.isArray(value)) return [];
