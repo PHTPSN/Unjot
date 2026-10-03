@@ -1,14 +1,14 @@
-/* ===========================================================
-   unjot · 主界面原型
-   结构：.frame > (.chrome / .app > (.sidebar + .screens > .screen…))
-   页面切换：同级的 .screen 交叉淡入淡出，高斯模糊只在切换瞬间生效
-   =========================================================== */
+
+
+
+
+
 
 :root[data-theme="dark"] {
-  /* 声明配色方案，浏览器原生控件（滚动条、表单）才跟着走深色，
-     否则深色界面会冒出一条白底大滚动条 */
+  
+
   color-scheme: dark;
-  /* 深色 = 深灰（不再是近黑） */
+  
   --bg-app: #1E1E1E;
   --bg-sidebar: #242424;
   --bg-surface: #282828;
@@ -18,7 +18,7 @@
   --bg-selected: #383838;
   --border-subtle: #363636;
   --border-strong: #4A4A4A;
-  /* 文字用「墨色 + 透明度」而不是固定灰阶：像墨落在纸上，深浅自动贴合底色 */
+  
   --text-primary: #F2F0EC;
   --text-secondary: color-mix(in srgb, var(--text-primary) 76%, transparent);
   --text-tertiary: color-mix(in srgb, var(--text-primary) 62%, transparent);
@@ -33,7 +33,7 @@
   --console-bg: rgba(30, 30, 30, .94);
   --shadow-window: 0 24px 48px rgba(0, 0, 0, .38);
   --shadow-popover: 0 10px 28px rgba(0, 0, 0, .34);
-  /* 第二主题色（深色界面）：酒红 + 暗夜紫 */
+  
   --a2-1: #8A2436;
   --a2-2: #4A3580;
   --a2-1-ink: #FF8FA3;
@@ -43,9 +43,9 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  /* 浅色 = 米白 #F2EFEA（中性纸感，不再是暖米黄）；
-     强描边取灰色 #B0B8B4，强调色的字用酒红 #66353E。
-     面与底的层次仍按原来的明度关系推导，避免米白之后层次糊在一起。 */
+  
+
+
   --bg-app: #F2EFEA;
   --bg-sidebar: #ECE9E4;
   --bg-surface: #EAE6E1;
@@ -69,41 +69,41 @@
   --console-bg: rgba(242, 239, 234, .96);
   --shadow-window: 0 20px 40px rgba(72, 68, 62, .16);
   --shadow-popover: 0 10px 24px rgba(72, 68, 62, .16);
-  /* 第二主题色（浅色界面）：单色潘通粉 #F7CACA。
-     这个粉很浅，白字压不住：底色仍用指定粉，前景另取同色系深一档的墨色，
-     保证按钮文字 / 小字 / 自己的气泡全部在 AA 之上。 */
+  
+
+
   --a2-1: #F7CACA;
   --a2-2: #F7CACA;
-  --a2-1-ink: #66353E;   /* 米白底上的小字（酒红）：对比 8.5:1 */
+  --a2-1-ink: #66353E;   
   --a2-2-ink: #66353E;
-  --a2-bubble-ink: #66353E;  /* 粉底上的正文（酒红）：对比 6.6:1 */
+  --a2-bubble-ink: #66353E;  
   --on-a2: #66353E;
 }
 
-/* 第二主题色有三种用法：主色 / 副色 / 双色渐变 */
+
 :root { --on-a2: #FFFFFF; }
 :root[data-accent="one"]  { --a2: var(--a2-1); --a2-flat: var(--a2-1); --a2-ink: var(--a2-1-ink); }
 :root[data-accent="two"]  { --a2: var(--a2-2); --a2-flat: var(--a2-2); --a2-ink: var(--a2-2-ink); }
 :root[data-accent="grad"] { --a2: linear-gradient(135deg, var(--a2-1), var(--a2-2)); --a2-flat: var(--a2-1); --a2-ink: var(--a2-1-ink); }
 
-/* 字号：标准 / 大字，两档都很克制 */
+
 :root {
   --fs-h1: 20px;
   --fs-body: 15px;
   --fs-ui: 14px;
   --fs-sub: 12.5px;
   --fs-mini: 13px;
-  /* 三套字体角色：
-     UI / 中文释义 → Inter + 思源黑体（Noto Sans SC），常规字重 400
-     英文原文       → Literata（衬线，长文阅读）
-     英文例句       → Lato（人文无衬线，小字号清晰）
-     词条 / 数字    → JetBrains Mono                                    */
+  
+
+
+
+
   --font-ui: Inter, "Noto Sans SC", "Source Han Sans SC", "思源黑体", "Microsoft YaHei", sans-serif;
-  /* 只用拉丁衬线回退：混入中文字体会让 ’ 这类标点走全角字形 */
+  
   --font-read: Literata, Georgia, "Times New Roman", serif;
   --font-ex: Lato, Inter, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
-  /* 动效令牌（来自 emil-design-eng 技能）：内置 easing 太弱，一律用自定义曲线 */
+  
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -111,14 +111,14 @@
   --dur-pop: 180ms;
   --dur-screen: 220ms;
   --dur-exit: 150ms;
-  /* Apple 弹簧（apple-design §4）：damping 1.0 / response 0.4 为默认，0.8 / 0.3 只给带惯性的手势 */
+  
   --spring-default: linear(0, 0.05, 0.1595, 0.2884, 0.4154, 0.53, 0.6284, 0.71, 0.776, 0.8284, 0.8695, 0.9014, 0.9259, 0.9445, 0.9587, 0.9693, 0.9773, 0.9832, 0.9876, 0.9909, 0.9933, 0.9951, 0.9964, 0.9974, 0.9981, 0.9986, 1);
   --spring-flick: linear(0, 0.0449, 0.1503, 0.2829, 0.4207, 0.5501, 0.664, 0.7592, 0.8355, 0.8943, 0.9378, 0.9688, 0.9897, 1.0029, 1.0105, 1.0142, 1.0152, 1.0145, 1.0129, 1.0109, 1.0088, 1.0068, 1.0051, 1.0037, 1.0025, 1.0016, 1);
   --spring-settle: 590ms;
   --spring-settle-flick: 410ms;
 }
 
-/* Dynamic Type（§15）：大字模式连布局一起缩放，所以关键间距走 rem */
+
 html { font-size: 100%; }
 :root[data-size="large"] { font-size: 112.5%; }
 :root[data-size="large"] {
@@ -157,7 +157,7 @@ body {
 button { font: inherit; color: inherit; }
 .spacer { flex: 1; }
 
-/* ---------- 字体角色 ---------- */
+
 .txt-orig, .txt-orig p {
   font-family: var(--font-read);
   font-size: calc(var(--fs-body) + 1px);
@@ -167,7 +167,7 @@ button { font: inherit; color: inherit; }
 .txt-ex { font-family: var(--font-ex); font-optical-sizing: auto; }
 .txt-term, .txt-term b, .txt-term span { font-family: var(--font-mono); font-weight: 400; font-optical-sizing: auto; }
 
-/* ---------- 外壳 ---------- */
+
 .frame {
   flex: 1;
   min-height: 0;
@@ -225,7 +225,7 @@ button { font: inherit; color: inherit; }
 :root[data-shell="app"] .chrome-web { display: none; }
 :root[data-shell="web"] .chrome-app { display: none; }
 
-/* ---------- 骨架 ---------- */
+
 .app { flex: 1; min-height: 0; display: flex; }
 
 .sidebar {
@@ -282,12 +282,12 @@ button { font: inherit; color: inherit; }
 .user-name { font-size: var(--fs-ui); font-weight: 400; }
 .user-plan { font-size: var(--fs-sub); color: var(--text-tertiary); }
 
-/* ---------- 屏幕：同级叠放 + 交叉淡入淡出 ---------- */
+
 .screens { flex: 1; min-width: 0; position: relative; overflow: hidden; }
 .screen {
   position: absolute;
   inset: 0;
-  /* 静止态 display:none：不渲染、不占合成层，进场起点交给 @starting-style */
+  
   display: none;
   flex-direction: column;
   padding: 0 0 0;
@@ -302,14 +302,14 @@ button { font: inherit; color: inherit; }
   display: flex;
   opacity: 1; pointer-events: auto;
   transform: none; filter: none;
-  /* 进场起点：不从 scale(0) 起步 */
+  
   @starting-style {
     opacity: 0;
     transform: translateY(8px) scale(0.985);
     filter: blur(6px);
   }
 }
-/* 退出：只保留可见性 + 短暂的模糊位移；退场比进场快（150ms vs 220ms） */
+
 .screen.is-leaving {
   display: flex;
   opacity: 0;
@@ -318,7 +318,7 @@ button { font: inherit; color: inherit; }
   transition-duration: var(--dur-exit);
 }
 @media (prefers-reduced-motion: reduce) {
-  /* 减少动态效果 ≠ 全部取消：保留透明度过渡，去掉位移与模糊 */
+  
   .screen { transition: opacity 140ms linear; transform: none; filter: none; }
   .screen.is-leaving { transform: none; filter: none; }
 }
@@ -334,19 +334,19 @@ button { font: inherit; color: inherit; }
   margin: 0;
   font-size: var(--fs-h1);
   font-weight: 400;
-  line-height: 1.25;        /* 大字号收紧行高 */
-  letter-spacing: -0.02em;  /* 大字号负字距 */
+  line-height: 1.25;        
+  letter-spacing: -0.02em;  
 }
 .screen-head .sub { margin: 3px 0 0; font-size: var(--fs-sub); color: var(--text-tertiary); }
 
-/* ---------- 对话 ---------- */
+
 .stream {
   flex: 1; min-height: 0;
   overflow-y: auto;
   display: flex; flex-direction: column; gap: 20px;
   padding: 1.625rem 1.75rem;
 }
-/* 微信式气泡：对方在左用中性色，自己在右用第二主题色 */
+
 .msg { display: flex; gap: 10px; max-width: min(760px, 78%); }
 .msg.ai { align-self: flex-start; }
 .msg.user { align-self: flex-end; flex-direction: row-reverse; }
@@ -412,11 +412,11 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .chip.ok { color: var(--ok); }
 .chip.is-on { background: color-mix(in srgb, var(--a2-flat) 18%, transparent); color: var(--a2-ink); }
 
-/* ---------- 新对话 ---------- */
+
 .start-body {
   flex: 1; min-height: 0;
   display: grid;
-  /* 不再是三张等分卡（那是模板感最重的一种排布）：主角卡跨两列，两张并排在下方 */
+  
   grid-template-columns: repeat(2, minmax(220px, 280px));
   justify-content: center;
   align-content: center;
@@ -442,7 +442,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .tip { margin: 0; font-size: var(--fs-sub); color: var(--text-tertiary); }
 .tip.center { text-align: center; padding: 0 28px 24px; }
 
-/* ---------- 列表 / 卡片 ---------- */
+
 .rows { list-style: none; margin: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .row {
   display: flex; align-items: center; gap: 12px;
@@ -509,7 +509,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .toggle input:checked + i { background: var(--a2); }
 .toggle input:checked + i::after { transform: translateX(18px); background: var(--on-a2); }
 
-/* ---------- 输入框（只在对话页出现） ---------- */
+
 .composer {
   position: absolute; left: 0; right: 0; bottom: 0;
   display: none; align-items: center; gap: 8px;
@@ -564,7 +564,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .btn-send .ic { width: 18px; height: 18px; stroke-width: 2; }
 
-/* ---------- Tools 悬浮小窗 ---------- */
+
 .fab {
   position: absolute; right: 28px; bottom: 104px;
   width: 48px; height: 48px;
@@ -600,7 +600,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   pointer-events: none;
   filter: blur(6px);
   transform: translateY(-6px) scale(0.97);
-  /* 从触发元素的位置展开（FAB 在右下、顶部按钮在右上） */
+  
   transform-origin: var(--transform-origin, top right);
   transition:
     opacity var(--dur-pop) var(--ease-out),
@@ -608,7 +608,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
     filter var(--dur-pop) var(--ease-out),
     visibility var(--dur-pop);
 }
-/* 拖拽中：不加过渡，1:1 跟手（§2 / §3） */
+
 .tools.is-dragging {
   transition: none;
   cursor: grabbing;
@@ -666,7 +666,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .opt { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: var(--fs-mini); color: var(--text-secondary); }
 .opt i { width: 15px; height: 15px; flex: none; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--border-strong); }
 
-/* ---------- 演示开关 ---------- */
+
 .console {
   flex: none;
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -687,12 +687,12 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .console.is-collapsed .console-body { display: none; }
 .console .seg-btn { min-height: 26px; font-size: var(--fs-sub); }
 
-/* ===========================================================
-   风格化要素（借鉴主流语言学习 App 的通用手法）
-   目标：保留黑白底 + 第二主题色的克制感，只增加"学习感"与反馈感
-   =========================================================== */
 
-/* 1 · 可按压按钮：底部一条硬边，按下时下沉 */
+
+
+
+
+
 .btn-primary,
 .btn-ghost,
 .starter,
@@ -715,7 +715,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   transform: translateY(3px) scale(0.985);
   box-shadow: 0 0 0 transparent;
 }
-/* 平面可点元素统一按下反馈：scale(0.97) */
+
 .chip, .nav-item, .row, .icon-btn, .seg-btn, .opt, .tab-new {
   transition: transform var(--dur-press) var(--ease-out),
               background var(--dur-pop) ease,
@@ -728,12 +728,12 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .btn-send { transition: transform var(--dur-press) var(--ease-out), background var(--dur-pop) ease; }
 .btn-send:active { transform: scale(0.92); }
-/* hover 动画只在真正有指针的设备上生效，避免触屏 tap 触发假 hover */
+
 @media (hover: hover) and (pointer: fine) {
   .starter:hover { transform: translateY(-1px); }
 }
 
-/* ---------- 展示级字号：和正文字号拉开真实层级（工程型站点通常 16 → 44/64） ---------- */
+
 .screen-head h1.display, .display {
   font-size: 34px;
   line-height: 1.12;
@@ -742,7 +742,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 :root[data-size="large"] .display { font-size: 38px; }
 
-/* ---------- 编辑感微标签：等宽 + 全大写 + 字距（借自数据故事/杂志风格） ---------- */
+
 .microlabel {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -752,8 +752,8 @@ button.chip:hover { background: var(--bg-hover-strong); }
   color: var(--text-tertiary);
 }
 
-/* ---------- 去盒子：内容靠留白与发丝线分隔，而不是每个块都套框 ----------
-   参考站点实测：695 个元素里只有 30 个有描边 —— 装盒太多是最重的"模板感" */
+
+
 .rows { gap: 0; }
 .row {
   background: none;
@@ -768,10 +768,10 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .row .chev { opacity: .5; }
 .row:hover .chev { opacity: 1; }
 
-/* 学习路径的节点：去掉卡片，圆点 + 文字直接立在连接线上 */
+
 .node-card { background: none; border: none; padding: 4px 0; gap: 2px; }
 
-/* 今日目标：不套框，环和数字自己成立 */
+
 .daily { background: none; border: none; padding: 0 4px; }
 .daily-tx b::before {
   content: "TODAY";
@@ -782,7 +782,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   color: var(--text-tertiary);
 }
 
-/* 设置分组自动编号（01 / 02 / 03），不用改 HTML */
+
 #pageSettings, .screen[data-screen="settings"] { counter-reset: grp; }
 .screen[data-screen="settings"] .group-title { counter-increment: grp; }
 .screen[data-screen="settings"] .group-title::before {
@@ -794,13 +794,13 @@ button.chip:hover { background: var(--bg-hover-strong); }
   color: var(--text-tertiary);
 }
 
-/* ---------- 描边改成 alpha 发丝线，而不是固定灰 ---------- */
+
 .card, .row, .mini, .node-card, .daily, .stage, .starter, .player, .tile {
   border-color: var(--hairline);
 }
 .card:hover, .row:hover, .starter:hover, .tile:hover { border-color: var(--hairline-strong); }
 
-/* 2 · 今日目标卡（圆环 + 连续天数 + 本周打卡） */
+
 .daily {
   margin: 12px 4px 8px;
   padding: 12px;
@@ -839,7 +839,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .week i { flex: 1; height: 5px; border-radius: 999px; background: var(--bg-hover-strong); }
 .week i.on { background: var(--a2); }
 
-/* 3 · 学习路径：圆形节点 + 连接线 */
+
 .path { position: relative; margin: 20px 28px 0; }
 .path::before {
   content: ""; position: absolute; left: 19px; top: 26px; bottom: 26px;
@@ -879,10 +879,10 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .node-card i { font-style: normal; font-size: var(--fs-sub); font-family: var(--font-mono); color: var(--a2-ink); }
 .node.locked .node-card i { color: var(--text-tertiary); }
 
-/* 4 · 伙伴形象 + 成就徽章 */
+
 .buddy-row {
   display: flex; align-items: center; gap: 14px;
-  /* 去掉通栏底色：少一个圆角大方块，也让大标题继续当主角 */
+  
   margin: 22px 28px 0;
   padding: 0;
   background: none;
@@ -908,7 +908,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   background: color-mix(in srgb, var(--a2-flat) 10%, var(--bg-surface));
 }
 
-/* 5 · 答题反馈 + XP 飘字 + 彩带 */
+
 .opt { cursor: pointer; border-radius: var(--r-control); transition: background .15s ease, box-shadow .15s ease; }
 .opt:hover { background: var(--bg-hover); }
 .opt.right { background: color-mix(in srgb, var(--ok) 18%, transparent); box-shadow: inset 0 0 0 2px var(--ok); }
@@ -940,21 +940,21 @@ button.chip:hover { background: var(--bg-hover-strong); }
   .quiz-fb, .xp-float { animation: none; }
 }
 
-/* 6 · 复习卡片堆 */
+
 .card-stack { position: relative; }
 .card-stack .row-flat:nth-child(1) { transform: rotate(-1.1deg); }
 .card-stack .row-flat:nth-child(2) { transform: rotate(.6deg); }
 .card-stack .row-flat:nth-child(3) { transform: rotate(-.4deg); }
 
-/* 7 · 学习型圆角：比上一版再软一点 */
+
 .card, .mini, .row, .starter, .node-card, .daily, .tools { border-radius: var(--r-surface); }
 .link-btn { display: inline-flex; align-items: center; text-decoration: none; }
 
-/* ===========================================================
-   动效系统：按 emil-design-eng 的规则收口
-   =========================================================== */
 
-/* 进度环用 @property 让数值可插值，只影响绘制，不动布局 */
+
+
+
+
 @property --p {
   syntax: "<number>";
   inherits: false;
@@ -962,7 +962,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .ring { transition: --p 420ms var(--ease-out); }
 
-/* 列表/卡片逐项进场：30–80ms 的短错峰，纯装饰、不阻塞交互 */
+
 :is(.rows, .start-body, .path, .badges) > * {
   opacity: 0;
   transform: translateY(8px);
@@ -979,7 +979,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .screen.is-active :is(.rows, .start-body, .path, .badges) > :nth-child(5) { transition-delay: 180ms; }
 .screen.is-active :is(.rows, .start-body, .path, .badges) > :nth-child(6) { transition-delay: 225ms; }
 
-/* 减少动态效果：保留淡入淡出，去掉位移、模糊与循环动画 */
+
 @media (prefers-reduced-motion: reduce) {
   :is(.rows, .start-body, .path, .badges) > * {
     transform: none;
@@ -992,13 +992,13 @@ button.chip:hover { background: var(--bg-hover-strong); }
   .quiz-fb, .xp-float { animation: none; }
 }
 
-/* ===========================================================
-   v3：按 apple-design 重构
-   =========================================================== */
 
-/* §12 材质边缘的亮线放在文件最后，避免被后面的 border-color 简写覆盖 */
 
-/* §12 用渐隐代替硬分隔：内容滚到浮动 chrome 底下时淡出，而不是一条 1px 线 */
+
+
+
+
+
 .screen-head {
   position: relative;
   z-index: 2;
@@ -1015,7 +1015,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
 }
 
-/* §10 手势细节：小目标周围留隐形命中区（不改变布局） */
+
 .icon-btn, .seg-btn, .tab-new, .opt, .chip { position: relative; }
 .icon-btn::after, .seg-btn::after, .tab-new::after, .opt::after, .chip::after {
   content: "";
@@ -1024,7 +1024,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   border-radius: inherit;
 }
 
-/* §1 连续反馈：发送后立刻出现的输入指示器（不是等结果才给反馈） */
+
 .typing { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; }
 .typing i {
   width: 6px; height: 6px;
@@ -1039,10 +1039,10 @@ button.chip:hover { background: var(--bg-hover-strong); }
   30%           { transform: translateY(-4px); opacity: 1; }
 }
 
-/* §4 带一点回弹的反馈用动量弹簧曲线 */
+
 .quiz-fb { animation-timing-function: var(--spring-flick); }
 
-/* §14 减少透明度：玻璃变成实心，不再模糊 */
+
 @media (prefers-reduced-transparency: reduce) {
   .tools {
     background: var(--bg-elevated);
@@ -1052,18 +1052,18 @@ button.chip:hover { background: var(--bg-hover-strong); }
   .tools .mini, .tools .tile, .tools .player { background: var(--bg-surface); }
 }
 
-/* §14 提高对比：近实心 + 明确的描边 */
+
 @media (prefers-contrast: more) {
   .tools { background: var(--bg-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--text-secondary); }
   .card, .mini, .row, .tile, .node-card, .daily { border-color: color-mix(in srgb, var(--text-primary) 42%, transparent); }
   .chip, .seg { border: 1px solid color-mix(in srgb, var(--text-primary) 30%, transparent); }
 }
 
-/* ===========================================================
-   小窗：毛玻璃 + 水滴页眉 + 两版滑块（本次迭代到此为止）
-   =========================================================== */
 
-/* 1 · 毛玻璃：半透明底 + 背景模糊，内层卡片同步半透明才能透出玻璃感 */
+
+
+
+
 .tools {
   background: color-mix(in srgb, var(--bg-elevated) 62%, transparent);
   -webkit-backdrop-filter: blur(22px) saturate(165%);
@@ -1071,14 +1071,14 @@ button.chip:hover { background: var(--bg-hover-strong); }
   border-color: color-mix(in srgb, var(--border-strong) 65%, transparent);
   box-shadow: 0 18px 52px rgba(0, 0, 0, .44), inset 0 1px 0 rgba(255, 255, 255, .07);
 }
-/* 不要把「浅色半透明」叠在「浅色半透明」上：内层回到接近实心，玻璃感只留给窗口本身 */
+
 .tools .mini,
 .tools .tile,
 .tools .player {
   background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
   border-color: color-mix(in srgb, var(--border-subtle) 85%, transparent);
 }
-/* 玻璃面上的文字需要一点活力：提一档对比 + 极小字距，不用扁平的浅灰 */
+
 .tools .mini-label,
 .tools .tip,
 .tools .slider-cap,
@@ -1090,7 +1090,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   .tools { background: var(--bg-elevated); }
 }
 
-/* 2 · 水滴页眉：圆顶下缘 + 高光 + 右侧一滴水珠 */
+
 .tools-head {
   position: relative;
   height: 62px;
@@ -1118,7 +1118,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .tools-title, .tools-badge, .tools-head .icon-btn { position: relative; z-index: 1; }
 .tools-body { padding-top: 18px; }
 
-/* 3 · 两版滑块：A = 细轨小圆点（iOS 感），B = 粗轨药丸（学习 App 感） */
+
 .slider {
   -webkit-appearance: none; appearance: none;
   display: block; width: 100%; height: 22px;
@@ -1158,20 +1158,20 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .slider-cap b { color: var(--text-secondary); font-weight: 400; }
 
-/* ---------- §12 材质：最后写，确保不被 border-color 简写覆盖 ---------- */
-/* 浮动材质受光的那一侧：浅色主题白光更强，深色主题弱一些 */
+
+
 .tools { border-top: 1px solid color-mix(in srgb, #FFFFFF 18%, transparent); }
 :root[data-theme="light"] .tools { border-top-color: color-mix(in srgb, #FFFFFF 78%, transparent); }
 
-/* ===========================================================
 
-/* 小尺寸图标（连续天数 / 经验 / 徽章内图标） */
+
+
 .ic-xs { width: 14px; height: 14px; stroke-width: 1.9; }
 .daily-streak > svg { color: var(--a2-ink); }
 .badge { gap: 7px; padding: 7px 13px; }
 .badge .ic { opacity: .9; }
 
-/* AI 头像不再用「星光」图标：改成应用自己的字母标记，与品牌标一致 */
+
 .avatar-sm.ai {
   background: color-mix(in srgb, var(--a2-flat) 20%, var(--bg-surface));
   color: var(--a2-ink);
@@ -1180,7 +1180,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   letter-spacing: .02em;
 }
 
-/* 阴影也不再"一层柔光打天下"：小窗给两层（贴地 + 投影） */
+
 .tools {
   box-shadow: 0 14px 34px rgba(0, 0, 0, .28), 0 2px 6px rgba(0, 0, 0, .16);
 }
@@ -1188,19 +1188,19 @@ button.chip:hover { background: var(--bg-hover-strong); }
   box-shadow: 0 14px 30px rgba(72, 68, 62, .20), 0 2px 6px rgba(72, 68, 62, .10);
 }
 
-/* ===========================================================
-   v5：背景点阵（画布）+ 指针位置驱动的扩散
-   取消 v4 的"跟随点串"。点阵铺在应用窗口的最底层，静止时完全停帧。
-   所有可调参数都收在这一处，改点距/半径只动这里。
-   =========================================================== */
+
+
+
+
+
 :root {
-  --dot-ink: 10 10 10;    /* 浅色：近黑 */
-  --dot-alpha: .15;       /* 静止不透明度：轻微，不抢正文 */
-  --dot-gap: 26;          /* 点距 px */
-  --dot-base: 1;          /* 静止点半径 px */
+  --dot-ink: 10 10 10;    
+  --dot-alpha: .15;       
+  --dot-gap: 26;          
+  --dot-base: 1;          
 }
 :root[data-theme="dark"] {
-  --dot-ink: 242 240 236; /* 深色：用前景色系，纯黑在深灰底上不可见 */
+  --dot-ink: 242 240 236; 
   --dot-alpha: .13;
 }
 
@@ -1209,27 +1209,27 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .dotfield {
   position: absolute;
   inset: 0;
-  z-index: 0;              /* 窗口底色之上、所有内容之下 */
+  z-index: 0;              
   display: block;
   width: 100%;
   height: 100%;
   pointer-events: none;
-  /* 外圈轻轻收掉，避免点阵贴着窗口边框显得脏 */
+  
   -webkit-mask-image: radial-gradient(140% 122% at 50% 46%, #000 62%, transparent 100%);
   mask-image: radial-gradient(140% 122% at 50% 46%, #000 62%, transparent 100%);
 }
-/* 侧栏是不透明的，点阵只在主区透出来；chrome 需要压在最上面 */
+
 .chrome { position: relative; z-index: 2; }
 .app { position: relative; z-index: 1; }
 
 @media (prefers-reduced-motion: reduce) {
-  .dotfield { opacity: .7; }  /* 不放动效，静态点阵仍然保留 */
+  .dotfield { opacity: .7; }  
 }
 
-/* ===========================================================
-   去盒子收口：必须写在文件最后，否则会被后面的基础样式覆盖
-   （参考 pudding.cool：695 个元素里只有 30 个带描边）
-   =========================================================== */
+
+
+
+
 .node-card {
   background: none;
   border: none;
@@ -1243,7 +1243,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   padding: 0 4px;
   margin: 14px 4px 10px;
 }
-/* 列表行：只保留行间发丝线 */
+
 .rows { gap: 0; }
 .row {
   background: none;
@@ -1257,7 +1257,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .row:hover { background: none; }
 .row:hover .row-title { color: var(--a2-ink); }
 
-/* 设置分组编号：类名实际是 .card-head */
+
 .screen[data-screen="settings"] { counter-reset: grp; }
 .screen[data-screen="settings"] .card-head { counter-increment: grp; }
 .screen[data-screen="settings"] .card-head > span:first-child::before {
@@ -1269,7 +1269,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   color: var(--text-tertiary);
 }
 
-/* 微标签在页眉里要和 .sub 抢字号，这里明确锁定 */
+
 .screen-head .sub.microlabel {
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -1278,23 +1278,23 @@ button.chip:hover { background: var(--bg-hover-strong); }
   color: var(--text-tertiary);
 }
 
-/* ===========================================================
-   第三轮降 AI 感（取样：are.na —— 87% 元素零圆角、等宽字 0%、
-   标题与正文同号靠留白分层、内容用 1. 2. 3. 编号）
-   落到我们身上：结构件去圆角、分节用发丝线、内边距按内容类型分档
-   =========================================================== */
 
-/* ===========================================================
-   第四轮（取样：fly.io —— 348 个元素里 316 个圆角为 0，强调色只出现在 8 个元素上）
-   我们实测：12 个不同圆角值、19% 元素带色 → 收敛成 3 档 + 削减装饰性配色
-   =========================================================== */
 
-/* A · 圆角收敛成三档：结构 0 / 控件 8 / 大面 20；另有气泡尾巴与圆形两个形状例外 */
+
+
+
+
+
+
+
+
+
+
 :root {
   --r-structure: 0px;
   --r-control: 8px;
   --r-surface: 20px;
-  --r-tail: 6px;   /* 气泡尾巴：形状细节，不属于尺度 */
+  --r-tail: 6px;   
 }
 .frame, .tools, .card, .starter, .player, .quiz-fb, .daily, .node-card, .node.done .node-dot {
   border-radius: var(--r-surface);
@@ -1307,12 +1307,12 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .bubble { border-radius: var(--r-surface); }
 .msg.ai .bubble { border-top-left-radius: var(--r-tail); }
 .msg.user .bubble { border-top-right-radius: var(--r-tail); }
-/* 只有真正圆形的继续用胶囊 */
+
 .chip, .badge, .avatar, .ring, .week i, .btn-send, .fab, .bar, .steps li i, .dot, .node-dot {
   border-radius: 999px;
 }
 
-/* B · 打开新对话：改成左对齐的编号清单，而不是居中的三张卡 */
+
 .start-body {
   display: flex;
   flex-direction: column;
@@ -1356,7 +1356,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .start-body > *:hover { transform: none; }
 .start-body > *:hover .ic { color: var(--a2-ink); }
 
-/* C · 削减装饰性配色：强调色只留给主操作、当前页标记、自己的气泡、进度与品牌 */
+
 .avatar-sm.ai {
   background: var(--bg-hover-strong);
   color: var(--text-secondary);
@@ -1371,7 +1371,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .daily-streak > svg { color: var(--text-tertiary); }
 
-/* 1 · 工具小窗内部：不再每个小节套一个圆角盒，改成小节 + 发丝线 */
+
 .tools .mini {
   background: none;
   border: none;
@@ -1381,7 +1381,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .tools .panel > .mini:first-child { border-top: none; padding-top: 0; }
 
-/* 工具总览的五项：就是一张清单，不是五张卡 */
+
 .tools .tile {
   background: none;
   border: none;
@@ -1394,7 +1394,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .tools .tile:hover { background: none; }
 .tools .tile:hover .tile-tx b { color: var(--a2-ink); }
 
-/* 2 · 侧栏当前页：用左侧竖线标记，而不是圆角色块 */
+
 .nav-item.is-active {
   background: none;
   color: var(--text-primary);
@@ -1402,14 +1402,14 @@ button.chip:hover { background: var(--bg-hover-strong); }
   box-shadow: inset 2px 0 0 var(--a2-flat);
 }
 
-/* 3 · 内边距按内容类型分档：列表紧、入口松、正文卡最松 */
+
 .row { padding: 12px 4px; }
 .starter { padding: 18px 18px 20px; }
 .card { padding: 20px; }
 .tools .mini { padding-top: 12px; }
 
 
-/* ---------- 说话人标记：不用图标底，改成等宽小字（功能主义排版） ---------- */
+
 .msg .avatar-sm,
 .msg.ai .avatar-sm,
 .msg.user .avatar-sm {
@@ -1429,14 +1429,14 @@ button.chip:hover { background: var(--bg-hover-strong); }
 .msg.user .avatar-sm, .avatar-sm:not(.ai) { background: none; color: var(--text-tertiary); }
 .msg { align-items: flex-start; }
 
-/* ===========================================================
-   第六轮（取样：github.com —— 977 个元素里 924 个圆角 0（94.6%），
-   常用值只有 0 / 6px / 50%，整页只有 1 个胶囊）
-   三件事：胶囊只留给真圆形、列表加序号、正文收进固定版心
-   =========================================================== */
 
-/* A · 标签不再做胶囊：改成小圆角矩形（4px），只有真圆形保留 999 */
-/* 标签不再自成一个圆角档位：并到控件档（8px），整条半径刻度只剩 0 / 6 / 8 / 20 / 999 */
+
+
+
+
+
+
+
 .chip, .badge, .tools-badge { border-radius: var(--r-control); }
 .avatar, .ring, .ring > span, .week i, .btn-send, .fab, .bar, .steps li i, .dot,
 .node-dot, .toggle i, .toggle i::after, .win-dots i, .confetti-layer i {
@@ -1444,7 +1444,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .slider::-webkit-slider-thumb, .slider::-moz-range-thumb { border-radius: 999px; }
 
-/* B · 列表行加序号：01 / 02 / 03（编辑式版心，替代等级标签抢位置） */
+
 .rows { counter-reset: item; }
 .rows > .row { counter-increment: item; }
 .rows > .row > div { position: relative; padding-left: 32px; }
@@ -1459,20 +1459,20 @@ button.chip:hover { background: var(--bg-hover-strong); }
   color: var(--text-tertiary);
 }
 
-/* C · 正文收进固定版心（gov.uk 式左对齐），不再铺满整个宽度 */
+
 .stream { max-width: 760px; }
 .composer-wrap { max-width: 824px; }
 @media (max-width: 1100px) {
   .stream, .composer-wrap { max-width: none; }
 }
 
-/* ===========================================================
-   第七轮（取样：MDN 文档 —— 1644 个元素里 1638 个圆角 0（99.6%）、
-   描边 1%、填充 3%、等宽字 12% 只用于代码）
-   · 分组小标题：普通小字，不做大写胶囊（MDN 的做法）
-   · 列表页与正文统一到同一版心
-   注：我们等宽字实测只占 4%（比 MDN 更克制），所以这一项不动。
-   =========================================================== */
+
+
+
+
+
+
+
 
 .nav-group {
   display: block;
@@ -1481,7 +1481,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   font-size: 11.5px;
   line-height: 16px;
 }
-/* 列表页、设置、学习路径统一到与对话流相同的版心 */
+
 .rows, .screen[data-screen="settings"] .card, .screen[data-screen="path"] .path,
 .screen[data-screen="language"] .card { max-width: 760px; }
 .screen[data-screen="settings"] .card { margin-right: 0; }
@@ -1490,13 +1490,13 @@ button.chip:hover { background: var(--bg-hover-strong); }
   .screen[data-screen="language"] .card { max-width: none; }
 }
 
-/* ===========================================================
-   第八轮（取样：Hacker News —— 779 个元素里描边 0%、填充面 1%（只有 8 个）、
-   圆角 0%、等宽字 0%，层级全靠编号 / 缩进 / 字号 / 一个链接色）
-   我们实测：对话页描边 12% 填充 15%，设置页 8% / 19% → 削减表面
-   =========================================================== */
 
-/* 卡片不再是一个"面"：改成发丝线分隔的区块（设置分组、我的语言等） */
+
+
+
+
+
+
 .card {
   background: none;
   border: none;
@@ -1505,7 +1505,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   padding: 18px 0 0;
 }
 .card:first-of-type { border-top: none; padding-top: 0; }
-/* 纠错卡保留左侧强调线作为"旁注"标记，但去掉面与框 */
+
 .card.feedback {
   background: none;
   border: none;
@@ -1514,7 +1514,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   padding: 2px 0 2px 16px;
 }
 
-/* 分段控件：不用"药丸轨道 + 滑块"那套，改成底线 + 字重表示选中 */
+
 .seg { background: none; border: 1px solid var(--hairline); border-radius: var(--r-control); padding: 2px; }
 .seg-btn { background: none; color: var(--text-secondary); }
 .seg-btn.is-on {
@@ -1523,16 +1523,16 @@ button.chip:hover { background: var(--bg-hover-strong); }
   box-shadow: inset 0 -2px 0 var(--a2-flat);
 }
 
-/* 工具图标底去掉填充，只留图标 */
+
 .tile-ic { background: none; }
-/* 标签改成发丝线描边，不再填色 */
+
 .chip { background: none; border: 1px solid var(--hairline); }
 .chip.quiet, .badge { background: none; }
-/* 次级按钮同样不填色 */
+
 .btn-ghost { background: none; border-color: var(--hairline-strong); }
 .badge.lit { background: none; }
 
-/* 标签按 HN / MDN 的做法回到纯文字：不填色、不描边，只用弱化颜色 */
+
 .chip, .badge, .tools-badge {
   background: none;
   border: none;
@@ -1541,10 +1541,10 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .chip + .chip, .badge + .badge { margin-left: 10px; }
 
-/* ---------- 非强制 / 去功利化版的补充样式 ----------
-   本文件是原版 styles.css 的副本，只追加下面三条；原包里的 styles.css 未被改动。
-   原来的 .daily-streak / .week / .ring / .badges / .node.chest /
-   .confetti-layer 规则仍留在文件里，但已没有对应节点。 */
+
+
+
+
 .progress-note {
   margin: 0;
   font-size: var(--fs-sub);
@@ -1564,9 +1564,9 @@ button.chip:hover { background: var(--bg-hover-strong); }
   color: var(--text-tertiary);
 }
 
-/* ---------- 侧边栏毛玻璃 ----------
-   .app 本身没有底色，点阵画布就在它后面，所以 sidebar 半透明 + backdrop-filter
-   磨到的是点阵与窗口底色，而不是一层纯色。 */
+
+
+
 .sidebar {
   background: color-mix(in srgb, var(--bg-sidebar) 74%, transparent);
   backdrop-filter: blur(22px) saturate(140%);
@@ -1578,11 +1578,11 @@ button.chip:hover { background: var(--bg-hover-strong); }
   background: color-mix(in srgb, var(--bg-sidebar) 78%, transparent);
   box-shadow: inset -1px 0 0 color-mix(in srgb, #FFFFFF 46%, transparent);
 }
-/* 不支持 backdrop-filter 时退回不透明底色：看不清比糊成一团更糟 */
+
 @supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
   .sidebar { background: var(--bg-sidebar); }
 }
-/* 系统要求减少透明：直接给回不透明面 */
+
 @media (prefers-reduced-transparency: reduce) {
   .sidebar {
     background: var(--bg-sidebar);
@@ -1591,7 +1591,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
   }
 }
 
-/* ---------- 设置页：供应商列表与自定义空间字段 ---------- */
+
 .field {
   margin-top: 14px;
   padding-top: 12px;
@@ -1676,7 +1676,7 @@ button.chip:hover { background: var(--bg-hover-strong); }
 }
 .seg--wrap { flex-wrap: wrap; }
 
-/* ---------- AI 供应商字段：只读态、提示行、连接状态 ---------- */
+
 .text-input[readonly] {
   color: var(--text-secondary);
   background: var(--bg-hover);
@@ -1717,7 +1717,7 @@ select.text-input {
 .status-text.is-ok { color: var(--ok); }
 .status-text.is-ok .dot { background: var(--ok); }
 
-/* ---------- 证据句：由后端服务从已接受的观察推导 ---------- */
+
 .evidence-line {
   margin: 8px 0 0;
   padding-left: 10px;
@@ -1727,7 +1727,7 @@ select.text-input {
   color: var(--text-tertiary);
 }
 
-/* ---------- 极简滚动条：透明轨道 + 细圆角滑块，不再出现白色大条 ---------- */
+
 * {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--text-primary) 22%, transparent) transparent;
@@ -1750,17 +1750,17 @@ select.text-input {
   background: color-mix(in srgb, var(--text-primary) 34%, transparent);
   background-clip: content-box;
 }
-/* 滚动条两端的箭头按钮（旧版 Chrome/Edge）直接去掉 */
+
 *::-webkit-scrollbar-button { display: none; }
 
-/* ---------- 列表/设置类页面要能滚：此前只有对话页的 .stream 能滚 ---------- */
+
 .screen[data-screen="recent"],
 .screen[data-screen="language"],
 .screen[data-screen="path"],
 .screen[data-screen="library"],
 .screen[data-screen="settings"] {
   overflow-y: auto;
-  overflow-x: hidden;   /* 只许纵向滚，避免出现横向细条 */
+  overflow-x: hidden;   
   overscroll-behavior: contain;
 }
 .screen[data-screen="recent"] > .screen-head,
@@ -1776,7 +1776,7 @@ select.text-input {
   -webkit-backdrop-filter: blur(12px) saturate(120%);
 }
 
-/* ---------- 我的语言：有证据的表达 ---------- */
+
 .rows.eval { padding: 6px 0 2px; }
 .rows.eval .eval-line {
   font-size: var(--fs-sub);
@@ -1789,7 +1789,7 @@ select.text-input {
   color: var(--text-tertiary);
 }
 
-/* ---------- 学习路径：阶段可点，点了带进情境练习 ---------- */
+
 .path .node {
   width: 100%;
   background: none;
@@ -1803,8 +1803,8 @@ select.text-input {
 .path .node:hover .node-card b { color: var(--a2-ink); }
 .path .node:focus-visible { outline: 2px solid var(--a2-flat); outline-offset: 4px; }
 
-/* ---------- 浅色主题只保留单色潘通粉 ----------
-   副色与双色按钮在浅色下不显示，避免出现"两色"的错觉；
-   切到浅色时 JS 会把已选的"双色"收回到潘通粉那一档。 */
+
+
+
 :root[data-theme="light"] [data-accent-set="two"],
 :root[data-theme="light"] [data-accent-set="grad"] { display: none; }

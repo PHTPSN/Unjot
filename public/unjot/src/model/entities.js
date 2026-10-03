@@ -1,16 +1,16 @@
-/**
- * Frontend data model for unjot — shared vocabulary for both shells.
- *
- * Derived from the prototype's seven screens, with two decisions applied:
- *   1. Non-coercive: no gates, no minimum turns, no scheduled review, no locks.
- *   2. De-gamified: no XP, streaks, badges, goal rings, chests, or confetti.
- *      Progress is described with evidence sentences, never a score.
- *
- * Field names for conversations and observations stay aligned with the shared
- * contracts in packages/protocol/src so the UI model can be filled by them.
- */
 
-/** Learner stages, mirroring packages/protocol/src/learner-item-state.ts. */
+
+
+
+
+
+
+
+
+
+
+
+
 export const STAGES = Object.freeze([
   "encountered",
   "understood",
@@ -19,7 +19,7 @@ export const STAGES = Object.freeze([
   "repeated_independent_use",
 ]);
 
-/** Observation kinds, mirroring packages/protocol/src/evidence-event.ts. */
+
 export const OBSERVATION_KINDS = Object.freeze([
   "encountered",
   "recognized",
@@ -31,10 +31,10 @@ export const OBSERVATION_KINDS = Object.freeze([
   "uncertain",
 ]);
 
-/**
- * Keys that must never appear in a shell model. They are the功利化 surface of the
- * prototype (XP, streaks, badges, goal rings, reward chests, celebration).
- */
+
+
+
+
 export const FORBIDDEN_GAMIFICATION_KEYS = Object.freeze([
   "xp", "xpNum", "streak", "streakDays", "badge", "badges",
   "levelUp", "reward", "rewards", "chest", "goalPercent", "goalRing",
@@ -42,7 +42,7 @@ export const FORBIDDEN_GAMIFICATION_KEYS = Object.freeze([
   "rank", "combo",
 ]);
 
-/** Non-coercive rules the models are expected to honour. */
+
 export const NON_COERCIVE = Object.freeze({
   minTurnsPerItem: null,
   requiredContextSwitch: false,
@@ -52,7 +52,7 @@ export const NON_COERCIVE = Object.freeze({
   progressDisplay: "evidence_sentence",
 });
 
-/** @param {unknown} root @param {readonly string[]} keys */
+
 export function findForbiddenKeys(root, keys = FORBIDDEN_GAMIFICATION_KEYS) {
   const found = new Set();
   const seen = new WeakSet();
@@ -69,17 +69,17 @@ export function findForbiddenKeys(root, keys = FORBIDDEN_GAMIFICATION_KEYS) {
   return [...found];
 }
 
-/**
- * Describe item progress the way the product wants to show it: concrete
- * evidence, never a percentage.
- *
- * @param {object} progress
- * @param {string} progress.stage
- * @param {number} progress.independentUses
- * @param {number} progress.independentContexts
- * @param {string | null} progress.lastIndependentAt
- * @param {string} progress.itemLabel
- */
+
+
+
+
+
+
+
+
+
+
+
 export function describeProgress({ stage, independentUses, independentContexts, lastIndependentAt, itemLabel }) {
   if (!STAGES.includes(stage)) throw new TypeError(`unknown stage: ${stage}`);
   if (independentUses === 0) return `${itemLabel}：还没有独立使用的记录。`;
@@ -88,7 +88,7 @@ export function describeProgress({ stage, independentUses, independentContexts, 
   return `${itemLabel}：已在 ${contexts}中独立使用 ${independentUses} 次${when}。`;
 }
 
-/** @param {object} input */
+
 export function createLearnerProfile({
   nativeLanguage = "zh",
   targetLanguage = "en",
@@ -104,7 +104,7 @@ export function createLearnerProfile({
   return Object.freeze({ nativeLanguage, targetLanguage, statedLevel, levelSource });
 }
 
-/** @param {object} input */
+
 export function createPreferences({
   correctionMode = false,
   thinkFirst = false,
@@ -124,17 +124,17 @@ export function createPreferences({
   });
 }
 
-/** Path stages describe what becomes possible; they never gate access. */
+
 export function createPathStage({ id, title, description, examples = [] }) {
   return Object.freeze({ id, title, description, examples: Object.freeze([...examples]) });
 }
 
-/**
- * Mainstream model providers: endpoint, default model, and where the learner
- * gets a key. The settings screen auto-fills the first two from this table, so
- * the UI never hardcodes a URL that the backend does not also know.
- * `local` providers run on the machine and need no key.
- */
+
+
+
+
+
+
 export const PROVIDER_PRESETS = Object.freeze([
   { id: "openai", label: "OpenAI", baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o-mini", keysUrl: "https://platform.openai.com/api-keys" },
   { id: "anthropic", label: "Anthropic Claude", baseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-3-5-sonnet-latest", keysUrl: "https://console.anthropic.com/settings/keys" },
@@ -154,15 +154,15 @@ export const PROVIDER_PRESETS = Object.freeze([
   },
 ]);
 
-/** @param {string} id @returns {(typeof PROVIDER_PRESETS)[number] | null} */
+
 export function resolveProvider(id) {
   return PROVIDER_PRESETS.find((preset) => preset.id === id) ?? null;
 }
 
-/** The Explain tool is deliberately unmodelled, so it is never an agent tool. */
+
 export const AGENT_TOOLS = Object.freeze(["rewrite", "scenario", "listening"]);
 
-/** Agent defaults follow the non-coercive stance: it answers, it does not push. */
+
 export const AGENT_DEFAULTS = Object.freeze({
   uiLanguage: "follow_ui",
   correction: "on_request",
@@ -180,7 +180,7 @@ const AGENT_ENUMS = Object.freeze({
   level: ["follow_learner", "simpler", "natural"],
 });
 
-/** @param {object} input */
+
 export function createAgentProfile({
   name = "Unjot",
   uiLanguage = AGENT_DEFAULTS.uiLanguage,
@@ -216,14 +216,14 @@ export function createAgentProfile({
   });
 }
 
-/** Raw secrets never enter the model; only a reference to a local key store does. */
+
 const RAW_SECRET = /^(sk-|sk_|AIza|gsk_|Bearer\s)/;
 
-/**
- * @param {object} input
- * Mainstream providers auto-fill `baseUrl` and `model` from the preset;
- * `provider: "custom"` is the only case that must bring its own `baseUrl`.
- */
+
+
+
+
+
 export function createProviderConfig({ provider, baseUrl = null, model = null, keyRef = null }) {
   const preset = resolveProvider(provider);
   if (preset === null && provider !== "custom") {
@@ -247,7 +247,7 @@ export function createProviderConfig({ provider, baseUrl = null, model = null, k
   });
 }
 
-/** @param {object} input */
+
 export function createScenario({ situation, learnerRole, aiRole, goals = [], difficulty = null, targetExpressions = [] }) {
   return Object.freeze({
     situation, learnerRole, aiRole,
@@ -257,7 +257,7 @@ export function createScenario({ situation, learnerRole, aiRole, goals = [], dif
   });
 }
 
-/** @param {object} input */
+
 export function createMaterial({ id, kind, title, wordCount = null, durationSec = null, level = null, saved = false, sourceConversationId = null }) {
   if (!["article", "audio"].includes(kind)) throw new TypeError(`unknown material kind: ${kind}`);
   return Object.freeze({ id, kind, title, wordCount, durationSec, level, saved, sourceConversationId });

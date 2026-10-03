@@ -44,10 +44,8 @@
 
 <div class="frame">
 
-  <!-- 背景点阵（画布）：鼠标移动时以指针为中心向外扩散 -->
   <canvas class="dotfield" id="dotfield" aria-hidden="true"></canvas>
 
-  <!-- 桌面应用窗口壳 -->
   <header class="chrome chrome-app">
     <div class="win-dots"><i></i><i></i><i></i></div>
     <div class="chrome-title">unjot</div>
@@ -57,7 +55,6 @@
     </div>
   </header>
 
-  <!-- 浏览器壳 -->
   <div class="chrome chrome-web">
     <div class="tabstrip">
       <div class="tab">
@@ -91,231 +88,69 @@
         <span data-i18n="newChat">新建对话</span>
       </button>
 
-      <nav class="nav">
-      </nav>
-
       <div class="nav-bottom">
         <button class="nav-item" data-go="settings"><svg class="ic"><use href="#i-gear"/></svg><span data-i18n="nav.settings">设置</span></button>
       </div>
-
-      <div class="daily">
-        <!-- 非强制：不显示目标环、连击、积分、周点；进度只在有真实使用记录时用一句话说明 -->
-        <p class="progress-note" data-i18n="progress.note">这里不设目标、不记连击、不给积分。有真实使用记录时，才用一句话说明学到哪一步。</p>
-      </div>
-
-      <div class="user">
-        <div class="avatar">sy</div>
-        <div class="user-col">
-          <div class="user-name">sama yokaz</div>
-          <div class="user-plan" data-i18n="userPlan">免费版</div>
-        </div>
-      </div>
     </aside>
 
-    <!-- 一屏一层：页面同级，切换时交叉淡入淡出 -->
     <div class="screens" id="screens">
 
-      <!-- 1 · Conversation -->
       <section class="screen" data-screen="conversation">
-        <header class="screen-head">
-          <div class="head-text">
-            <h1 data-i18n="conv.title">日常寒暄 · 在咖啡店点单</h1>
-            <p class="sub microlabel" data-i18n="conv.meta">情境练习 · 难度 A2 · 第 3 轮</p>
-          </div>
-        </header>
-
         <div class="stream" id="stream">
-          <div class="time-chip" data-i18n="conv.time">上午 9:41</div>
-
-          <!-- 情境开场白：静态的，不属于学习者与助手的会话轮次 -->
-          <div class="msg ai" id="scenario-opener">
-            <div class="avatar-sm ai">un</div>
-            <div class="bubble txt-orig">
-              <p>Good morning! You&rsquo;re at a small caf&eacute; in London. The barista smiles and says: &ldquo;Hi, what can I get for you today?&rdquo;</p>
-              <p class="hint" data-i18n="conv.hint">提示：点单时说 “Could I…” 更自然。</p>
-            </div>
-          </div>
-          <!-- 后面的轮次由 src/ui.js 从后端服务（backend/conversation-service）渲染 -->
         </div>
       </section>
 
-      <!-- 2 · 新对话 -->
 
-      <!-- 3 · 最近对话 -->
 
-      <!-- 4 · 我的语言 -->
-
-      <!-- 5 · 学习路径 -->
-
-      <!-- 6 · 资料库 -->
-
-      <!-- 7 · 设置 -->
       <section class="screen" data-screen="settings">
         <header class="screen-head">
           <div class="head-text"><h1 data-i18n="set.title">设置</h1><p class="sub" data-i18n="set.sub">随时可以改，改完立即生效。</p></div>
         </header>
 
         <div class="card">
-          <div class="card-head"><span data-i18n="set.ai">AI 助手</span></div>
-
-          <!-- 选项由 src/ui.js 从后端模型层的 PROVIDER_PRESETS 生成，
-               不在这里写死，避免界面与后端各维护一份供应商表。 -->
+          <div class="card-head"><span data-i18n="set.ai">AI 接入</span></div>
           <label class="field-row">
-            <span data-i18n="set.provider">用哪个 AI</span>
-            <select class="text-input" id="aiProvider"></select>
+            <span data-i18n="set.provider">模型提供商</span>
+            <input class="text-input" id="aiProvider" type="text">
           </label>
-
           <label class="field-row">
-            <span data-i18n="set.baseUrl">Base URL</span>
-            <input class="text-input" id="aiBaseUrl" type="url" value="https://api.openai.com/v1" readonly>
+            <span data-i18n="set.model">模型</span>
+            <input class="text-input" id="aiModel" type="text">
           </label>
-          <p class="field-hint" id="aiUrlHint" data-i18n="set.autoFilled">已按所选供应商自动填入；选「自定义供应商」可以自己填。</p>
-
-          <label class="field-row">
-            <span data-i18n="set.model">模型名</span>
-            <input class="text-input" id="aiModel" type="text" value="gpt-4o-mini" readonly>
-          </label>
-
           <label class="field-row">
             <span data-i18n="set.apiKey">API Key</span>
-            <input class="text-input" id="aiKey" type="password" placeholder="sk-…" data-i18n-ph="set.apiKeyPh">
+            <input class="text-input" id="aiKey" type="password">
           </label>
-
+          <label class="field-row">
+            <span data-i18n="set.baseUrl">Base URL</span>
+            <input class="text-input" id="aiBaseUrl" type="url">
+          </label>
           <div class="field-row">
             <span data-i18n="set.key">连接状态</span>
             <b class="status-text" id="aiStatus"><i class="dot"></i><span id="aiStatusText">未连接</span></b>
           </div>
-          <p class="tip" data-i18n="set.keyTip">换 AI 或填自己的 API Key 都在这里，不影响已学的记录。</p>
-
-          <div class="field">
-            <span class="field-label" data-i18n="set.providers">拿 Key 的入口</span>
-            <ul class="providers">
-              <li><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI <em>platform.openai.com</em></a></li>
-              <li><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Anthropic Claude <em>console.anthropic.com</em></a></li>
-              <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Google Gemini <em>aistudio.google.com</em></a></li>
-              <li><a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noreferrer">DeepSeek <em>platform.deepseek.com</em></a></li>
-              <li><a href="https://platform.moonshot.cn/console/api-keys" target="_blank" rel="noreferrer">Moonshot / Kimi <em>platform.moonshot.cn</em></a></li>
-              <li><a href="https://bailian.console.aliyun.com/" target="_blank" rel="noreferrer">阿里通义百炼 <em>bailian.console.aliyun.com</em></a></li>
-              <li><a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noreferrer">智谱 GLM <em>open.bigmodel.cn</em></a></li>
-              <li><a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">OpenRouter <em>openrouter.ai</em></a></li>
-              <li><a href="https://ollama.com/download" target="_blank" rel="noreferrer">Ollama 本地 <em>localhost:11434</em></a></li>
-            </ul>
-          </div>
         </div>
 
         <div class="card">
-          <div class="card-head"><span data-i18n="agent.title">Agent 设定</span></div>
-          <label class="field-row">
-            <span data-i18n="agent.name">名字</span>
-            <input class="text-input" id="agentName" type="text" value="Unjot" data-i18n-ph="agent.namePh">
-          </label>
-          <div class="field-row">
-            <span data-i18n="agent.lang">讲解语言</span>
-            <div class="seg" data-setting="agent.uiLanguage">
-              <button class="seg-btn is-on" data-value="follow_ui" data-i18n="agent.langFollow">跟界面</button>
-              <button class="seg-btn" data-value="zh">中文</button>
-              <button class="seg-btn" data-value="en">English</button>
-            </div>
-          </div>
-          <label class="field-row">
-            <span data-i18n="agent.model">使用模型</span>
-            <input class="text-input" id="agentModel" type="text" placeholder="跟随上面的供应商" data-i18n-ph="agent.modelPh">
-          </label>
-          <div class="field-row">
-            <span data-i18n="agent.correction">什么时候纠正我</span>
-            <div class="seg seg--wrap" data-setting="agent.correction">
-              <button class="seg-btn" data-value="never" data-i18n="agent.corrOff">不纠正</button>
-              <button class="seg-btn is-on" data-value="on_request" data-i18n="agent.corrAsk">我问了才说</button>
-              <button class="seg-btn" data-value="when_natural" data-i18n="agent.corrAlways">有更自然的就说</button>
-            </div>
-          </div>
-          <div class="field-row">
-            <span data-i18n="agent.proactive">主动程度</span>
-            <div class="seg seg--wrap" data-setting="agent.proactive">
-              <button class="seg-btn is-on" data-value="respond_only" data-i18n="agent.proOff">只回应我</button>
-              <button class="seg-btn" data-value="ask_followup" data-i18n="agent.proAsk">可以追问</button>
-              <button class="seg-btn" data-value="suggest_practice" data-i18n="agent.proSuggest">可以提议练习</button>
-            </div>
-          </div>
-          <div class="field-row">
-            <span data-i18n="agent.memory">记忆范围</span>
-            <div class="seg" data-setting="agent.memory">
-              <button class="seg-btn" data-value="session" data-i18n="agent.memSession">这次对话</button>
-              <button class="seg-btn is-on" data-value="all_history" data-i18n="agent.memAll">全部历史</button>
-            </div>
-          </div>
-          <div class="field-row">
-            <span data-i18n="agent.level">用语难度</span>
-            <div class="seg seg--wrap" data-setting="agent.level">
-              <button class="seg-btn is-on" data-value="follow_learner" data-i18n="agent.levelFollow">跟我的水平</button>
-              <button class="seg-btn" data-value="simpler" data-i18n="agent.levelSimple">再简单一点</button>
-              <button class="seg-btn" data-value="natural" data-i18n="agent.levelNatural">自然就好</button>
-            </div>
-          </div>
-          <label class="field-row field-row--stack">
-            <span data-i18n="agent.instructions">角色设定</span>
-            <textarea class="text-input text-area" id="agentInstructions" rows="3" placeholder="例如：先聊内容，遇到不清楚的地方再解释；不要替我做练习。" data-i18n-ph="agent.instructionsPh"></textarea>
-          </label>
-          <p class="tip" data-i18n="agent.note">Agent 只影响怎么陪你聊；它不能改学习状态——证据和进度仍由程序按你的真实使用推导。</p>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><span data-i18n="set.learn">学习偏好</span></div>
-          <label class="toggle"><span data-i18n="set.t1">说错了帮我改</span><input type="checkbox" checked><i></i></label>
-          <label class="toggle"><span data-i18n="set.t2">先让我自己想，再给答案</span><input type="checkbox" checked><i></i></label>
-          <label class="toggle"><span data-i18n="set.t3">词汇难度跟着我的水平走</span><input type="checkbox" checked><i></i></label>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><span data-i18n="set.look">外观与语言</span></div>
+          <div class="card-head"><span data-i18n="set.lang">界面语言</span></div>
           <div class="row-flat">
-            <span data-i18n="set.accent">主题色</span>
-            <div class="seg">
-              <button class="seg-btn" data-accent-set="one"></button>
-              <button class="seg-btn" data-accent-set="two"></button>
-              <button class="seg-btn" data-accent-set="grad" data-i18n="accent.grad">双色</button>
-            </div>
-          </div>
-          <p class="tip" data-i18n="set.accentTip">浅色界面用潘通粉 + 亮橘，深色界面用酒红 + 暗夜紫；也可以只取其中一色。</p>
-          <div class="row-flat">
-            <span data-i18n="set.theme">主题</span>
-            <div class="seg">
-              <button class="seg-btn" data-theme-set="dark" data-i18n="set.dark">深色</button>
-              <button class="seg-btn" data-theme-set="light" data-i18n="set.light">浅色</button>
-            </div>
-          </div>
-          <div class="row-flat">
-            <span data-i18n="set.lang">界面语言</span>
             <div class="seg">
               <button class="seg-btn" data-lang-set="zh">中文</button>
               <button class="seg-btn" data-lang-set="en">English</button>
             </div>
           </div>
-          <div class="row-flat">
-            <span data-i18n="set.size">字大一点</span>
-            <div class="seg">
-              <button class="seg-btn" data-size-set="normal" data-i18n="set.sizeNormal">标准</button>
-              <button class="seg-btn" data-size-set="large" data-i18n="set.sizeLarge">大字</button>
-            </div>
-          </div>
         </div>
       </section>
 
-      <!-- 输入框：只在对话页与新对话页出现 -->
       <div class="composer" id="composer">
-        <button class="icon-btn"><svg class="ic"><use href="#i-attach"/></svg></button>
-        <input id="composerInput" type="text" autocomplete="off" data-i18n-ph="composer.ph">
-        <button class="icon-btn"><svg class="ic"><use href="#i-mic"/></svg></button>
+        <input id="composerInput" type="text" autocomplete="off" aria-label="Message">
         <button class="btn-send" id="sendBtn"><svg class="ic"><use href="#i-up"/></svg></button>
       </div>
 
-      <!-- Tools 悬浮小窗 -->
     </div>
   </div>
 </div>
 
-<!-- 演示开关已移除：应用窗口/浏览器、深浅色、语言、主题色、音效、点阵这些
-     开关都在「设置 → 外观与语言」里，页面底部不再有调试条。 -->
 
 <script type="module" src="./src/ui.js"></script>
 </body>

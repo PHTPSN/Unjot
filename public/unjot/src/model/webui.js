@@ -1,10 +1,10 @@
-/**
- * Web UI model — the browser shell (data-shell="web" in the prototype).
- *
- * The shell owns a real URL, so screens are routes, sessions are tabs, and all
- * state has to survive a reload without a server. Everything stays local: no
- * account, no cloud dependency.
- */
+
+
+
+
+
+
+
 
 import { NON_COERCIVE, createPreferences, createPathStage } from "./entities.js";
 import { EMPTY_AREA_REASON } from "./empty.js";
@@ -44,17 +44,17 @@ export function createWebUiModel() {
       offline: "required",
     }),
     engine: Object.freeze({
-      placement: "in-page-worker", // or a loopback service the user runs
+      placement: "in-page-worker", 
       requiresServer: false,
       streaming: "worker-postMessage",
     }),
     session: Object.freeze({
       identity: "anonymous-local",
-      multiTabLock: true, // one writer per conversation across tabs
+      multiTabLock: true, 
       resumable: true,
     }),
     native: Object.freeze({
-      notifications: false, // opt-in only, never a nudge by default
+      notifications: false, 
       vibration: false,
       sound: false,
       deepLinks: true,
@@ -75,7 +75,7 @@ export function createWebUiModel() {
   });
 }
 
-/** Path stages are descriptive for both shells; kept here as the shared default. */
+
 export function createDefaultPathStages() {
   return Object.freeze([
     createPathStage({ id: "start-speaking", title: "敢开口", description: "点单、问路、自我介绍这类日常场景。" }),

@@ -1,18 +1,17 @@
-/* =========================================================================
-   unjot · 主界面原型
-   一个很小的状态机：
-     theme(dark|light) · lang(zh|en) · size(normal|large) · shell(app|web)
-     screen(conversation|start|recent|language|path|library|settings)
-     tool(overview|rewrite|scenario|listening|explain|review) + toolsOpen
-   切页只做三件事：换 active 类、写一个 data 属性、更新侧栏高亮。
-   ========================================================================= */
 
-/* 后端边界：会话、证据、设置、供应商表都来自 src/backend 与 src/model，
-   这个文件只负责渲染与交互。 */
+
+
+
+
+
+
+
+
+
+
 import { createChatSession } from "./chat-session.js";
 import { createMockResponder } from "./mock-responses.js";
 import { createSettingsService, createMemoryStore } from "./backend/settings-service.js";
-import { PROVIDER_PRESETS } from "./model/entities.js";
 
 const I18N = {
   zh: {
@@ -64,7 +63,7 @@ const I18N = {
     "lib.a": "文章 · 620 词 · B1", "lib.b": "文章 · 410 词 · A2",
     "lib.c": "音频 · 1:20 · A2", "lib.d": "收藏表达 · 来自「在咖啡店点单」",
     "set.title": "设置", "set.sub": "随时可以改，改完立即生效。",
-    "set.ai": "AI 助手", "set.provider": "用哪个 AI", "set.local": "本地",
+    "set.ai": "AI 助手", "set.provider": "模型提供商", "set.local": "本地",
     "set.key": "连接状态", "set.keyOk": "已连接",
     "set.keyTip": "换 AI 或填自己的 API Key 都在这里，不影响已学的记录。",
     "set.learn": "学习偏好", "set.t1": "说错了帮我改", "set.t2": "先让我自己想，再给答案",
@@ -80,8 +79,8 @@ const I18N = {
     "set.customFilled": "自己填接口地址：自建网关、公司内网或本地模型都可以，例如 https://api.example.com/v1",
     "set.keyNone": "未连接",
     "set.custom": "自定义空间",
-    "set.baseUrl": "接口地址", "set.baseUrlPh": "https://api.example.com/v1",
-    "set.model": "模型名", "set.modelPh": "gpt-4o-mini / qwen-plus / glm-4",
+    "set.baseUrl": "Base URL", "set.baseUrlPh": "https://api.example.com/v1",
+    "set.model": "模型", "set.modelPh": "gpt-4o-mini / qwen-plus / glm-4",
     "set.apiKey": "API Key", "set.apiKeyPh": "sk-…",
     "set.customTip": "自定义接口只存在本机，用于自建网关、公司内网或本地模型；不填就继续用上面的供应商。",
     "agent.title": "Agent 设定",
@@ -197,7 +196,7 @@ const I18N = {
     "lib.a": "Article · 620 words · B1", "lib.b": "Article · 410 words · A2",
     "lib.c": "Audio · 1:20 · A2", "lib.d": "Saved phrase · from “Ordering coffee”",
     "set.title": "Settings", "set.sub": "Change anything any time — it takes effect right away.",
-    "set.ai": "AI assistant", "set.provider": "Which AI", "set.local": "Local",
+    "set.ai": "AI assistant", "set.provider": "Model provider", "set.local": "Local",
     "set.key": "Connection", "set.keyOk": "Connected",
     "set.keyTip": "Switching AI or adding your own API key happens here, without touching your learning record.",
     "set.learn": "Learning preferences", "set.t1": "Correct me when I get it wrong",
@@ -283,7 +282,7 @@ const I18N = {
   }
 };
 
-/* 第二主题色的名字随主题变化 */
+
 const ACCENT_NAMES = {
   light: { zh: ["潘通粉", "潘通粉"], en: ["Pantone pink", "Pantone pink"] },
   dark: { zh: ["酒红", "暗夜紫"], en: ["Wine red", "Night purple"] }
@@ -299,7 +298,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const root = document.documentElement;
 
-/* ------------------------------ 后端服务 ------------------------------ */
+
 const settingsService = createSettingsService({ store: createMemoryStore() });
 const chat = createChatSession({
   respond: createMockResponder({ delayMs: 260 }),
@@ -309,7 +308,7 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const t = (k) => (I18N[state.lang] || I18N.zh)[k] ?? I18N.zh[k] ?? k;
 
-/* ------------------------------- 文案 ------------------------------- */
+
 function applyText() {
   $$("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
   $$("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
@@ -318,8 +317,8 @@ function applyText() {
     if (b.dataset.accentSet === "one") b.textContent = names[0];
     else if (b.dataset.accentSet === "two") b.textContent = names[1];
   });
-  // 供应商的提示行与连接状态是动态文案，语言切换后按当前模式重算
-  if ($("#aiProvider")) renderAiConfig();
+  
+  if ($("#aiBaseUrl")) renderAiConfig();
 }
 
 function syncSegs() {
@@ -338,9 +337,9 @@ function syncNav() {
   });
 }
 
-/* ------------------------------ 切页 ------------------------------ */
-/* 交叉淡入淡出只用 transition（可被打断、可重定向）：
-   进场 = 加 is-active；退场 = 去掉 is-active + 用 is-leaving 保持可见直到过渡结束 */
+
+
+
 function go(name) {
   if (!name || name === state.screen) return;
   const next = $(`.screen[data-screen="${name}"]`);
@@ -376,11 +375,11 @@ function go(name) {
   syncNav();
 }
 
-/* ------------------------------ 外观 ------------------------------ */
+
 function setTheme(v) {
   state.theme = v;
   root.dataset.theme = v;
-  // 浅色只有单色潘通粉：把深色下的"双色"收回来，避免出现没有选中项的按钮组
+  
   if (v === "light" && state.accent !== "one") state.accent = "one";
   root.dataset.accent = state.accent;
   applyText();
@@ -391,107 +390,87 @@ function setLang(v) { state.lang = v; root.dataset.lang = v; root.lang = v === "
 function setSize(v) { state.size = v; root.dataset.size = v; syncSegs(); }
 function setShell(v) { state.shell = v; root.dataset.shell = v; syncSegs(); }
 
-/* ------------------------------ AI 供应商 ------------------------------ */
-/* 选项由后端模型层的 PROVIDER_PRESETS 生成；选中即由 settings-service 自动补齐
-   Base URL 与默认模型并把字段转为只读，选「自定义供应商」时交回用户填写。
-   API Key 本身不进入配置，只写入一条"密钥库引用"。 */
+
+
+
+
+
+let providerName = "";
+let modelName = "";
+let baseUrlDraft = "";
+
 function refreshAiStatus() {
   const boxEl = $("#aiStatus");
   const textEl = $("#aiStatusText");
   if (!boxEl || !textEl) return;
-  const snapshot = settingsService.getSnapshot();
-  const connected = snapshot.keyRef !== null && ($("#aiKey")?.value.trim().length ?? 0) >= 8;
+  const keyEntered = ($("#aiKey")?.value.trim().length ?? 0) >= 8;
+  const connected = keyEntered && settingsService.getSnapshot().keyRef !== null;
   boxEl.classList.toggle("is-ok", connected);
   textEl.textContent = t(connected ? "set.keyOk" : "set.keyNone");
 }
 
-/** 自定义模式下用户还没填完的草稿；填完整后由 settings-service 落库 */
-let customDraft = null;
 
-/** 把服务里的配置渲染回表单 */
 function renderAiConfig() {
-  const snapshot = settingsService.getSnapshot();
-  const custom = customDraft !== null || snapshot.provider === "custom";
-  const base = customDraft === null ? (snapshot.baseUrl ?? "") : customDraft.baseUrl;
-  const model = customDraft === null ? (snapshot.model ?? "") : customDraft.model;
-  const select = $("#aiProvider");
-  if (select) select.value = custom ? "custom" : snapshot.provider;
-  const baseEl = $("#aiBaseUrl");
+  const fill = (selector, value) => {
+    const el = $(selector);
+    if (el && document.activeElement !== el) el.value = value ?? "";
+  };
+  fill("#aiProvider", providerName);
+  fill("#aiModel", modelName);
+  fill("#aiBaseUrl", baseUrlDraft);
+  refreshAiStatus();
+}
+
+
+function saveProvider() {
+  const el = $("#aiProvider");
+  if (!el) return;
+  providerName = el.value.trim();
+  refreshAiStatus();
+}
+
+function saveModel() {
   const modelEl = $("#aiModel");
-  if (baseEl) {
-    baseEl.value = base;
-    baseEl.readOnly = !custom;
-    baseEl.placeholder = custom ? "https://api.example.com/v1" : "";
-  }
-  if (modelEl) {
-    modelEl.value = model;
-    modelEl.readOnly = !custom;
-    modelEl.placeholder = custom ? "gpt-4o-mini / qwen-plus / glm-4" : "";
-  }
-  const hint = $("#aiUrlHint");
-  if (hint) {
-    hint.dataset.mode = custom ? "custom" : "auto";
-    hint.textContent = t(custom ? "set.customFilled" : "set.autoFilled");
+  if (!modelEl) return;
+  modelName = modelEl.value.trim();
+  try {
+    settingsService.setCustomProvider({
+      baseUrl: baseUrlDraft || ($("#aiBaseUrl")?.value ?? ""),
+      model: modelName || null,
+    });
+  } catch {
+    
   }
   refreshAiStatus();
 }
 
-/** 供应商下拉与 Agent 字段都从服务状态渲染，避免界面自己维护一份表 */
-function bootstrapSettingsForm() {
-  const select = $("#aiProvider");
-  if (select) {
-    const options = PROVIDER_PRESETS.map((preset) => new Option(preset.label, preset.id));
-    options.push(new Option(t("set.providerCustom"), "custom"));
-    select.replaceChildren(...options);
-  }
-  renderAiConfig();
-  applyAgentToForm();
-}
-
-function applyAgentToForm() {
-  const agent = settingsService.getSnapshot().agent;
-  const setValue = (selector, value) => {
-    const el = $(selector);
-    if (el) el.value = value ?? "";
-  };
-  setValue("#agentName", agent.name);
-  setValue("#agentModel", agent.model ?? "");
-  setValue("#agentInstructions", agent.instructions ?? "");
-
-  $$("[data-setting]").forEach((group) => {
-    const key = group.dataset.setting.replace("agent.", "");
-    group.querySelectorAll(".seg-btn").forEach((btn) => btn.classList.toggle("is-on", btn.dataset.value === agent[key]));
-  });
-  $$("[data-setting-multi]").forEach((group) => {
-    const key = group.dataset.settingMulti.replace("agent.", "");
-    const chosen = agent[key] ?? [];
-    group.querySelectorAll(".seg-btn").forEach((btn) => btn.classList.toggle("is-on", chosen.includes(btn.dataset.value)));
-  });
-}
-
-function saveAgentPatch(patch) {
+function saveBaseUrl() {
+  const baseEl = $("#aiBaseUrl");
+  if (!baseEl) return;
+  baseUrlDraft = baseEl.value.trim();
   try {
-    settingsService.setAgent(patch);
-  } catch (error) {
-    // 模型层拒绝的值不写进配置；原型里只可能来自界面自身的改动
-    console.warn("agent setting rejected:", error.message);
+    settingsService.setCustomProvider({
+      baseUrl: baseUrlDraft,
+      model: modelName || null,
+    });
+  } catch {
+    
   }
-  applyAgentToForm();
+  refreshAiStatus();
 }
 
 function saveApiKeyRef() {
-  const snapshot = settingsService.getSnapshot();
   const entered = ($("#aiKey")?.value.trim().length ?? 0) >= 8;
   try {
-    settingsService.setApiKeyRef(entered ? `browser-secure-store:${snapshot.provider}` : null);
+    settingsService.setApiKeyRef(entered ? "browser-secure-store:custom" : null);
   } catch (error) {
     console.warn("key reference rejected:", error.message);
   }
   refreshAiStatus();
 }
 
-/* ------------------------------ 事件 ------------------------------ */
-/* ---- 理解反馈：只说明对错，不给积分、不庆祝、不记连击 ---- */
+
+
 function answerQuiz(opt) {
   const group = opt.closest(".mini") || opt.parentElement;
   const opts = $$(".opt[data-answer]", group);
@@ -526,7 +505,7 @@ document.addEventListener("click", ev => {
       DOTS.cv.style.visibility = "hidden";
       if (DOTS.raf) cancelAnimationFrame(DOTS.raf);
       DOTS.raf = 0;
-      // 复位，免得再次打开时点从旧位置"跳"回来
+      
       for (const d of DOTS.grid) { d.ox = 0; d.oy = 0; d.vx = 0; d.vy = 0; d.a = 0; }
     }
     else { DOTS.cv.style.visibility = ""; dotsKick(); }
@@ -547,68 +526,18 @@ document.addEventListener("click", ev => {
 });
 
 $("#newChat").addEventListener("click", () => go("conversation"));
-// 演示条已移除；下面这些开关现在都在「设置 → 外观与语言」里
 
-/* AI 供应商：切换即自动补齐 Base URL 与模型；填了 Key 才算连上 */
-if ($("#aiProvider")) {
-  $("#aiProvider").addEventListener("change", (ev) => {
-    const id = ev.target.value;
-    if (id === "custom") {
-      customDraft = { baseUrl: "", model: "" };
-    } else {
-      customDraft = null;
-      settingsService.selectProvider(id);
-    }
-    renderAiConfig();
-  });
-  // 自定义模式下 Base URL / 模型由用户填写，服务层负责校验（必须是绝对 http(s) URL）
-  for (const selector of ["#aiBaseUrl", "#aiModel"]) {
-    $(selector).addEventListener("input", () => {
-      if (customDraft === null && settingsService.getSnapshot().provider !== "custom") return;
-      customDraft = { baseUrl: $("#aiBaseUrl").value, model: $("#aiModel").value };
-      try {
-        settingsService.setCustomProvider({ baseUrl: customDraft.baseUrl, model: customDraft.model || null });
-        customDraft = null; // 已落库，之后按服务状态渲染
-      } catch {
-        /* 输入过程中的半成品不报错，等填完整再落库 */
-      }
-      const hint = $("#aiUrlHint");
-      if (hint) {
-        hint.dataset.mode = "custom";
-        hint.textContent = t("set.customFilled");
-      }
-      refreshAiStatus();
-    });
-  }
+
+
+if ($("#aiBaseUrl")) {
+  $("#aiProvider").addEventListener("input", saveProvider);
+  $("#aiModel").addEventListener("input", saveModel);
+  $("#aiBaseUrl").addEventListener("input", saveBaseUrl);
   $("#aiKey").addEventListener("input", saveApiKeyRef);
-  bootstrapSettingsForm();
+  renderAiConfig();
 }
 
-/* Agent 字段：改动直接交给 settings-service 校验后写入配置 */
-for (const [selector, key] of [["#agentName", "name"], ["#agentModel", "model"], ["#agentInstructions", "instructions"]]) {
-  const el = $(selector);
-  if (el) el.addEventListener("input", () => saveAgentPatch({ [key]: el.value }));
-}
 
-document.addEventListener("click", (ev) => {
-  const single = ev.target.closest("[data-setting] .seg-btn");
-  if (single) {
-    const group = single.closest("[data-setting]");
-    saveAgentPatch({ [group.dataset.setting.replace("agent.", "")]: single.dataset.value });
-    return;
-  }
-  const multi = ev.target.closest("[data-setting-multi] .seg-btn");
-  if (multi && !multi.disabled) {
-    const group = multi.closest("[data-setting-multi]");
-    const key = group.dataset.settingMulti.replace("agent.", "");
-    const chosen = new Set(settingsService.getSnapshot().agent[key] ?? []);
-    if (chosen.has(multi.dataset.value)) chosen.delete(multi.dataset.value);
-    else chosen.add(multi.dataset.value);
-    saveAgentPatch({ [key]: [...chosen] });
-  }
-});
-
-/* ------------------------------ 输入 ------------------------------ */
 function scrollStream() {
   const s = $("#stream");
   s.scrollTop = s.scrollHeight;
@@ -627,12 +556,12 @@ function appendUser(text) {
   $("#stream").appendChild(wrap);
   scrollStream();
 }
-/* ---- 会话渲染：轮次与证据都来自后端服务，界面不自己编消息 ---- */
+
 function itemLabel(itemId) {
   return itemId.replace(/^sense:/, "").replace(/%2.*$/, "").replace(/_/g, " ");
 }
 
-/** 证据条说的是"这一轮记下了什么"，不是累计进度（累计进度见 progress.sentence） */
+
 function evidenceLabel(observation) {
   if (!observation) return t("chip.evidenceNone");
   switch (observation.kind) {
@@ -644,7 +573,7 @@ function evidenceLabel(observation) {
   }
 }
 
-/** 累计状态句只在有真实产出时显示；助手提供/接触类给出原因说明 */
+
 function evidenceNote(observation, progress) {
   if (!observation) return null;
   if (observation.kind === "spontaneous_production" || observation.kind === "assisted_production") {
@@ -654,7 +583,7 @@ function evidenceNote(observation, progress) {
   return t("note.negative");
 }
 
-/** @param {Element} host @param {string | null} text */
+
 function appendEvidenceLine(host, text) {
   if (!text) return;
   const line = document.createElement("p");
@@ -692,7 +621,7 @@ function appendAi(turn, observation, progress) {
   scrollStream();
 }
 
-/** 清掉开场白之后的动态内容，再按后端状态重画 */
+
 function renderStream() {
   const snapshot = chat.getState();
   const stream = $("#stream");
@@ -717,7 +646,7 @@ function renderStream() {
   if (snapshot.busy) appendTyping();
 }
 
-/* §1：发送后立刻出现的输入指示器，替换掉「等 400ms 才给反馈」 */
+
 function appendTyping() {
   const wrap = document.createElement("div");
   wrap.className = "msg ai";
@@ -729,7 +658,7 @@ function appendTyping() {
   return wrap;
 }
 
-/* --------------------- §13 多模态：默认关闭，只在有意义的事件触发 --------------------- */
+
 let audioCtx = null;
 function blip(freq = 480, dur = 0.05) {
   if (!state.sound) return;
@@ -749,18 +678,18 @@ function blip(freq = 480, dur = 0.05) {
     osc.connect(gain).connect(audioCtx.destination);
     osc.start(now);
     osc.stop(now + dur + 0.02);
-  } catch (e) { /* 静默失败，不影响交互 */ }
+  } catch (e) {  }
 }
 function haptic(ms = 8) {
   if (!state.sound) return;
-  if (navigator.vibrate) navigator.vibrate(ms);   // 与视觉同帧
+  if (navigator.vibrate) navigator.vibrate(ms);   
 }
 function send() {
   const input = $("#composerInput");
   const value = input.value.trim();
   if (!value) return;
   if (state.screen !== "conversation") go("conversation");
-  // 交给后端状态机：空白与"等待中重复发送"都由它拒绝
+  
   const result = chat.send(value);
   if (result.status === "rejected") return;
   input.value = "";
@@ -771,7 +700,7 @@ function send() {
 $("#sendBtn").addEventListener("click", send);
 $("#composerInput").addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); send(); } });
 
-/* ---- 两版滑块：拖动时更新数值与已填充比例 ---- */
+
 function bindSlider(id, valueId, format) {
   const el = $(id);
   if (!el) return;
@@ -787,12 +716,12 @@ function bindSlider(id, valueId, format) {
 bindSlider("#speedSlider", "#speedVal", v => (v / 10).toFixed(1) + "x");
 bindSlider("#volSlider", "#volVal", v => Math.round(v) + "%");
 
-/* ============ v5：背景点阵 + 指针位置驱动的扩散 ============
-   取代 v4 的"跟随点串"。做法是常见的 canvas 粒子场：
-   · 点阵按固定间距铺满主区，静止时是一层很淡的纹理
-   · 指针附近的点被"推开"并稍微提亮，越靠近越明显 → 形成一圈扩散
-   · 推开用弹簧收回来（推得快、收得稳），没有点动的时候直接停帧
-   参数全部写在 styles.css 的 --dot-* 里，这里只读不写死。 */
+
+
+
+
+
+
 const DOTS = {
   cv: null, cx: null, dpr: 1, w: 0, h: 0,
   gap: 26, base: 1, rad: 200, push: 24,
@@ -808,12 +737,12 @@ function dotsToken() {
   DOTS.base = num("--dot-base", 1);
   DOTS.alpha = num("--dot-alpha", 0.15);
   DOTS.ink = (cs.getPropertyValue("--dot-ink") || "10 10 10").trim();
-  // 亮度按档位预生成，避免每帧拼 2000 个字符串
+  
   DOTS.styles = [];
   for (let i = 0; i <= 12; i++) {
     const a = Math.min(0.92, DOTS.alpha * (1 + (i / 12) * 3.2));
-    // 注意：--dot-ink 是空格分隔的三个通道，必须用 rgb(r g b / a) 这种现代写法。
-    // 写成 rgba(r g b, a) 是非法值，fillStyle 会被静默忽略 → 所有点都变成纯黑。
+    
+    
     DOTS.styles.push("rgb(" + DOTS.ink + " / " + a.toFixed(3) + ")");
   }
 }
@@ -873,9 +802,9 @@ function dotsFrame() {
       if (q < rad2) {
         const dist = Math.sqrt(q) || 0.001;
         const t = 1 - dist / rad;
-        const e = t * t * (3 - 2 * t);        // smoothstep：边缘过渡自然，中心最明显
+        const e = t * t * (3 - 2 * t);        
         const p = push * e;
-        tx = (dx / dist) * p;                 // 从指针指向外，所以内侧空、外侧聚
+        tx = (dx / dist) * p;                 
         ty = (dy / dist) * p;
         ta = e;
       }
@@ -911,7 +840,7 @@ function dotsInit() {
   DOTS.cv = $("#dotfield");
   if (!DOTS.cv) return;
   dotsBuild();
-  // 触屏 / 减少动态效果：保留静态点阵，不做指针跟随
+  
   const canFollow = !reduceMotion && matchMedia("(hover: hover) and (pointer: fine)").matches;
   if (canFollow) {
     window.addEventListener("pointermove", (e) => dotsAt(e.clientX, e.clientY), { passive: true });
@@ -923,20 +852,13 @@ function dotsInit() {
     clearTimeout(rz);
     rz = setTimeout(dotsBuild, 140);
   });
-  // 主题/语言切换会改变点的颜色，重算一次
+  
   new MutationObserver(() => { dotsToken(); dotsPaint(); })
     .observe(root, { attributes: true, attributeFilter: ["data-theme"] });
 }
 
 dotsInit();
 
-/* ------------------------------ 启动 ------------------------------ */
-/* 纠正偏好接到后端：m0-v2 默认关闭，开关只影响之后的提交 */
-const correctionToggle = $$(".card .toggle input[type='checkbox']")[0];
-if (correctionToggle) {
-  correctionToggle.checked = false;
-  correctionToggle.addEventListener("change", () => chat.setCorrectionMode(correctionToggle.checked));
-}
 
 chat.subscribe(() => renderStream());
 renderStream();

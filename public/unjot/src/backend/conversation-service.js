@@ -1,19 +1,19 @@
-/**
- * Conversation + Evidence service: the boundary the Web UI talks to.
- *
- * It owns the objects the backend protocol defines — ConversationTurn,
- * EvidenceEvent and the derived LearnerItemState — so the UI never assembles
- * protocol data by hand. Today the service runs in-process and stores nothing;
- * swapping it for an HTTP client later must not change its public shape.
- *
- * Policy notes (m0-v2): production credit needs the learner's original text,
- * help and failure never advance a stage, and one use is one observation.
- */
+
+
+
+
+
+
+
+
+
+
+
 
 import { OBSERVATION_KINDS, STAGES, describeProgress } from "../model/entities.js";
 import { POLICY_VERSION, assertContract } from "./contracts.js";
 
-/** Ladder used to project accepted observations onto a stage. */
+
 export const STAGE_RULES = Object.freeze([
   { stage: "repeated_independent_use", test: (c, contexts) => c.spontaneous_production > 0 && contexts.length > 1 },
   { stage: "spontaneous_production", test: (c) => c.spontaneous_production > 0 },
@@ -22,7 +22,7 @@ export const STAGE_RULES = Object.freeze([
   { stage: "encountered", test: (c) => c.encountered + c.help_requested + c.supplied + c.failed_opportunity + c.uncertain > 0 },
 ]);
 
-/** @param {object} counts @param {string[]} contexts */
+
 export function stageFromCounts(counts, contexts) {
   for (const rule of STAGE_RULES) {
     if (rule.test(counts, contexts)) return rule.stage;
@@ -35,14 +35,14 @@ function defaultMakeId(prefix) {
   return uuid ? `${prefix}:${uuid}` : `${prefix}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/**
- * @param {object} [options]
- * @param {string} [options.conversationId]
- * @param {string} [options.contextId]
- * @param {string} [options.deviceId]
- * @param {() => Date} [options.clock]
- * @param {(prefix: string) => string} [options.makeId]
- */
+
+
+
+
+
+
+
+
 export function createConversationService({
   conversationId = "conv:local-1",
   contextId = "ctx:local-1",
@@ -50,20 +50,20 @@ export function createConversationService({
   clock = () => new Date(),
   makeId = defaultMakeId,
 } = {}) {
-  /** @type {object[]} */
+  
   const turns = [];
-  /** @type {object[]} */
+  
   const observations = [];
   let sequence = 0;
 
-  /** @param {object} turn */
+  
   function pushTurn(turn) {
     const frozen = Object.freeze(assertContract("conversationTurn", turn));
     turns.push(frozen);
     return frozen;
   }
 
-  /** @param {{ text: string, correctionMode?: boolean }} input */
+  
   function addLearnerTurn({ text, correctionMode = false }) {
     if (typeof text !== "string" || text.trim() === "") {
       throw new TypeError("a learner turn needs non-blank text");
@@ -74,7 +74,7 @@ export function createConversationService({
       sequence: ++sequence,
       role: "learner",
       contextId,
-      text, // original text is never rewritten
+      text, 
       occurredAt: clock().toISOString(),
       suppliedItemIds: [],
       correctionMode,
@@ -82,14 +82,14 @@ export function createConversationService({
     });
   }
 
-  /**
-   * @param {object} input
-   * @param {string} input.text
-   * @param {string | null} [input.correction]
-   * @param {string | null} [input.sourceTurnId] Learner turn the correction refers to.
-   * @param {readonly string[]} [input.suppliedItemIds]
-   * @param {boolean} [input.correctionMode]
-   */
+  
+
+
+
+
+
+
+
   function addAssistantTurn({ text, correction = null, sourceTurnId = null, suppliedItemIds = [], correctionMode = false }) {
     if (typeof text !== "string") throw new TypeError("an assistant turn needs text");
     if (correction !== null && sourceTurnId === null) {
@@ -109,20 +109,20 @@ export function createConversationService({
     });
   }
 
-  /**
-   * Record an accepted observation. `textSource: "text"` is required for
-   * production kinds: the learner's own text is the only thing that can show it.
-   *
-   * @param {object} input
-   * @param {string} input.itemId
-   * @param {string} input.kind
-   * @param {string} input.turnId
-   * @param {string} [input.textSource]
-   * @param {{start: number, end: number} | null} [input.observedSpan]
-   * @param {string | null} [input.supportTurnId]
-   * @param {string} input.rationale
-   * @param {string} [input.contextId]
-   */
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
   function observe({
     itemId,
     kind,
@@ -167,7 +167,7 @@ export function createConversationService({
     return event;
   }
 
-  /** @param {string} itemId @param {{ label?: string }} [options] */
+  
   function progressFor(itemId, { label = itemId } = {}) {
     const accepted = observations.filter((event) => event.itemId === itemId);
     if (accepted.length === 0) return null;
