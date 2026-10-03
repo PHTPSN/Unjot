@@ -1,18 +1,27 @@
 {
   "name": "unjot",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": ">=24.13.1"
-  },
+  "engines": { "node": ">=24.13.1" },
   "packageManager": "npm@11.8.0",
   "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test packages/golden-tests/*.test.mjs",
+    "test": "node --test tests/*.test.mjs packages/golden-tests/*.test.mjs",
     "check": "npm run typecheck && npm test"
   },
+  "dependencies": {
+    "lucide-react": "1.31.0",
+    "next": "16.3.4",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
   "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "typescript": "5.9.3"
   }
 }
