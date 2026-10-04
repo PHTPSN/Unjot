@@ -41,7 +41,7 @@ export class LearnerStore {
     });
     this.sql.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const version = Number(this.sql.prepare("PRAGMA user_version").get()!.user_version);
-    if (version > 3) throw new Error("Learner database is newer than this application.");
+    if (version > 4) throw new Error("Learner database is newer than this application.");
     if (version === 0) this.transaction(() => {
       this.sql.exec(`
         CREATE TABLE settings (key TEXT PRIMARY KEY, body TEXT NOT NULL);
@@ -54,6 +54,9 @@ export class LearnerStore {
         CREATE TABLE reply_analysis (assistant_turn_id TEXT PRIMARY KEY REFERENCES conversation_turn(id), contract_version TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage));
         CREATE TABLE workflow_run (id TEXT PRIMARY KEY, kind TEXT NOT NULL, context_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL);
+        CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE conversation (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project(id), title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
+        CREATE INDEX conversation_project ON conversation(project_id, updated_at DESC);
         PRAGMA user_version=3;
       `);
       this.setting("device", randomUUID()); this.setting("conversation-context", randomUUID()); this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES); this.setting("correction", false);
@@ -63,6 +66,8 @@ export class LearnerStore {
       this.sql.prepare("INSERT OR IGNORE INTO settings(key,body) VALUES (?,?)").run("conversation-context", JSON.stringify(randomUUID()));
     });
     if (version <= 2) this.transaction(() => { this.sql.exec("CREATE TABLE IF NOT EXISTS workflow_run (id TEXT PRIMARY KEY, kind TEXT NOT NULL, context_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL); PRAGMA user_version=3;"); });
+    if (version <= 3) this.transaction(() => { this.sql.exec("CREATE TABLE IF NOT EXISTS project (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS conversation (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project(id), title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS conversation_project ON conversation(project_id, updated_at DESC); PRAGMA user_version=4;"); this.ensureWorkspace(); });
+    this.ensureWorkspace();
   }
   close() { this.sql.close(); }
   turn(id: string): ConversationTurn | null {
@@ -120,10 +125,21 @@ export class LearnerStore {
   turns(limit = 100): ConversationTurn[] {
     return this.sql.prepare("SELECT body FROM conversation_turn ORDER BY sequence DESC LIMIT ?").all(limit).reverse().map(r => JSON.parse(String(r.body)));
   }
+  conversationTurns(conversationId: string, limit = 100): ConversationTurn[] { return this.sql.prepare("SELECT body FROM conversation_turn ORDER BY sequence DESC LIMIT ?").all(limit * 3).map(r => JSON.parse(String(r.body))).filter((t: ConversationTurn) => t.conversationId === conversationId).slice(-limit); }
   async historyPage(limit = 100): Promise<ConversationTurn[]> {
     const rows = await this.orm.select().from(turnsTable).orderBy(desc(turnsTable.sequence)).limit(limit);
     return rows.reverse().map(row => JSON.parse(row.body));
   }
+  projects() { return this.sql.prepare("SELECT id,name,created_at AS createdAt,updated_at AS updatedAt FROM project WHERE archived=0 ORDER BY updated_at DESC").all(); }
+  conversations(projectId?: string) { const sql = projectId ? "SELECT id,project_id AS projectId,title,created_at AS createdAt,updated_at AS updatedAt FROM conversation WHERE project_id=? AND archived=0 ORDER BY updated_at DESC" : "SELECT id,project_id AS projectId,title,created_at AS createdAt,updated_at AS updatedAt FROM conversation WHERE archived=0 ORDER BY updated_at DESC"; return this.sql.prepare(sql).all(...(projectId ? [projectId] : [])); }
+  createProject(name = "My language") { const id = randomUUID(), now = new Date().toISOString(); this.sql.prepare("INSERT INTO project VALUES (?,?,?,?,0)").run(id, name.trim() || "My language", now, now); return this.projects().find((p: any) => p.id === id); }
+  createConversation(projectId: string, title = "New conversation") { if (!this.sql.prepare("SELECT id FROM project WHERE id=? AND archived=0").get(projectId)) throw new StoreError("Project not found.", 404); const id = randomUUID(), now = new Date().toISOString(); this.sql.prepare("INSERT INTO conversation VALUES (?,?,?,?,0)").run(id, projectId, title.trim() || "New conversation", now, now); return this.conversations(projectId).find((c: any) => c.id === id); }
+  renameProject(id: string, name: string) { this.sql.prepare("UPDATE project SET name=?,updated_at=? WHERE id=? AND archived=0").run(name.trim() || "My language", new Date().toISOString(), id); return this.projects().find((p: any) => p.id === id) ?? null; }
+  renameConversation(id: string, title: string) { this.sql.prepare("UPDATE conversation SET title=?,updated_at=? WHERE id=? AND archived=0").run(title.trim() || "New conversation", new Date().toISOString(), id); return this.conversations().find((c: any) => c.id === id) ?? null; }
+  archiveProject(id: string) { this.sql.prepare("UPDATE project SET archived=1 WHERE id=?").run(id); this.sql.prepare("UPDATE conversation SET archived=1 WHERE project_id=?").run(id); }
+  archiveConversation(id: string) { this.sql.prepare("UPDATE conversation SET archived=1 WHERE id=?").run(id); }
+  private ensureWorkspace() { if (Number(this.sql.prepare("SELECT COUNT(*) AS n FROM project").get()!.n) > 0) return; const pid = randomUUID(), cid = "local-conversation", now = new Date().toISOString(); this.sql.prepare("INSERT INTO project VALUES (?,?,?,?,0)").run(pid, "My language", now, now); this.sql.prepare("INSERT INTO conversation(id,project_id,title,created_at,updated_at,archived) VALUES (?,?,?,?,?,0)").run(cid, pid, "Conversation", now, now); }
+  defaultConversationId() { return "local-conversation"; }
   private insertTurn(turn: ConversationTurn) { this.sql.prepare("INSERT INTO conversation_turn(sequence,id,body) VALUES (?,?,?)").run(turn.sequence, turn.id, JSON.stringify(turn)); }
   private nextSequence(): number { return Number(this.sql.prepare("SELECT COALESCE(MAX(sequence),0)+1 AS n FROM conversation_turn").get()!.n); }
   private upsertStage(id: string, stage: WorkflowStage, status: WorkflowStageStatus, body: unknown = null) {
@@ -164,7 +180,7 @@ export class LearnerStore {
     return submission;
   }
   private putSubmission(s: Submission) { this.sql.prepare("UPDATE submission SET body=?,finished=? WHERE id=?").run(JSON.stringify(s), s.reply ? 1 : 0, s.id); }
-  begin(id: string, original: string, correctionMode: boolean): Submission {
+  begin(id: string, original: string, correctionMode: boolean, conversationId = this.defaultConversationId()): Submission {
     if (!id || id.length > 200 || !original.trim() || original.length > 4000 || typeof correctionMode !== "boolean") throw new StoreError("Invalid submission.");
     return this.transaction(() => {
       const existing = this.getSubmission(id);
@@ -173,7 +189,8 @@ export class LearnerStore {
         return existing;
       }
       if (this.sql.prepare("SELECT id FROM submission WHERE finished=0 LIMIT 1").get()) throw new StoreError("Retry the unfinished message before sending another.", 409);
-      const turn: ConversationTurn = { id, conversationId: "local-conversation", sequence: this.nextSequence(), role: "learner", contextId: this.contextId, text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
+      if (!this.sql.prepare("SELECT id FROM conversation WHERE id=? AND archived=0").get(conversationId)) throw new StoreError("Conversation not found.", 404);
+      const turn: ConversationTurn = { id, conversationId, sequence: this.nextSequence(), role: "learner", contextId: this.contextId, text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
       const snapshotRevision = this.revision();
       const submission: Submission = { id, turn, preferences: this.preferences(), evidenceDone: false, stateRevision: snapshotRevision, snapshotRevision, reply: null };
       this.insertTurn(turn);

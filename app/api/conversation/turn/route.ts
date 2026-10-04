@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       text: body.text,
       correctionMode: body.correctionMode,
       id: body.submissionId,
+      conversationId: body.conversationId,
       store: learnerStore(),
     });
     return Response.json({ assistantMessage: { ...reply, learnerTurn: learnerStore().getSubmission(body.submissionId)!.turn } });
@@ -42,6 +43,7 @@ type TurnRequest = {
   submissionId: string;
   text: string;
   correctionMode: boolean;
+  conversationId?: string;
   history?: Array<{ role: "learner" | "assistant"; text: string; correction?: string | null }>;
 };
 
@@ -50,6 +52,7 @@ function isTurnRequest(value: unknown): value is TurnRequest {
   const body = value as Partial<TurnRequest>;
   return typeof body.submissionId === "string" && body.submissionId.length <= 200 && body.submissionId.length > 0 && typeof body.text === "string" && body.text.trim().length > 0 && body.text.length <= 4000 &&
     typeof body.correctionMode === "boolean" &&
+    (body.conversationId === undefined || (typeof body.conversationId === "string" && body.conversationId.length <= 200)) &&
     (body.history === undefined || (Array.isArray(body.history) && body.history.length <= 100 && body.history.every(entry =>
       typeof entry === "object" && entry !== null && (entry.role === "learner" || entry.role === "assistant") && typeof entry.text === "string" && (entry.correction == null || typeof entry.correction === "string"))));
 }

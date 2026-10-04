@@ -1,9 +1,11 @@
 import { learnerStore } from "../../../lib/learner-store.ts";
 
 export const runtime = "nodejs";
-export async function GET() {
+export async function GET(request: Request) {
   const store = learnerStore();
-  const turns = await store.historyPage();
+  const query = new URL(request.url).searchParams;
+  const conversationId = query.get("conversationId") || store.defaultConversationId();
+  const turns = store.conversationTurns(conversationId);
   const unfinished = store.pending();
   const completed = turns.filter(t => t.role === "learner").flatMap(t => {
     const reply = store.getSubmission(t.id)?.reply;
@@ -11,7 +13,7 @@ export async function GET() {
   });
   const lookupResultsByTurnId = Object.fromEntries(completed.map(item => [item.id, item.lookupResults]));
   const analysisByTurnId = Object.fromEntries(completed.filter(item => item.analysis).map(item => [item.id, item.analysis]));
-  return Response.json({ turns, correctionMode: store.correctionMode(), lookupResultsByTurnId, analysisByTurnId,
+  return Response.json({ turns, conversationId, projects: store.projects(), conversations: store.conversations(), correctionMode: store.correctionMode(), lookupResultsByTurnId, analysisByTurnId,
     unfinished: unfinished ? { id: unfinished.id, turn: unfinished.turn, stages: store.workflowStages(unfinished.id) } : null },
     { headers: { "cache-control": "no-store" } });
 }

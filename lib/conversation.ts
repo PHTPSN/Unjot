@@ -17,6 +17,7 @@ export type Reply = {
 };
 
 export type SavedConversation = {
+  conversationId?: string;
   turns: readonly ConversationTurn[];
   correctionMode: boolean;
   lookupResultsByTurnId: ConversationState["lookupResultsByTurnId"];
@@ -44,6 +45,7 @@ const INITIAL_STATE: ConversationState = {
 };
 
 export class ConversationController {
+  private conversationId = "local-conversation";
   private state: ConversationState = INITIAL_STATE;
   private retrySubmission: TurnSubmission | null = null;
   private readonly replyProvider: ReplyProvider;
@@ -74,6 +76,7 @@ export class ConversationController {
 
   restore(saved: SavedConversation): void {
     if (this.state.pending) return;
+    this.conversationId = saved.conversationId ?? this.conversationId;
     this.retrySubmission = saved.unfinished ? {
       submissionId: saved.unfinished.id, turn: saved.unfinished.turn,
       correctionMode: saved.unfinished.turn.correctionMode,
@@ -89,7 +92,7 @@ export class ConversationController {
 
     const learnerTurn: ConversationTurn = {
       id: this.createId(),
-      conversationId: "local-conversation",
+      conversationId: this.conversationId,
       sequence: (this.state.turns.at(-1)?.sequence ?? 0) + 1,
       role: "learner",
       contextId: "free-chat",
@@ -203,6 +206,7 @@ export function createApiReplyProvider(fetcher: typeof fetch = fetch): ReplyProv
         text: submission.turn.text,
         submissionId: submission.submissionId,
         correctionMode: submission.correctionMode,
+        conversationId: submission.turn.conversationId,
       }),
     });
     const payload = await response.json() as {

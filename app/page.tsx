@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { ArrowUp, Bot, Check, LoaderCircle, MessageSquareText, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUp, Bot, Check, FolderPlus, LoaderCircle, MessageSquareText, Plus, RotateCcw, Sparkles } from "lucide-react";
 import type { LexicalToolResult, PublicModelStatus } from "../lib/chat-types.ts";
 import { ConversationController, createApiReplyProvider } from "../lib/conversation.ts";
 import { ResponseSettings } from "./response-settings.tsx";
@@ -17,17 +17,22 @@ export default function ConversationPage() {
   const [savingCorrection, setSavingCorrection] = useState(false);
   const [settingError, setSettingError] = useState("");
   const [modelStatus, setModelStatus] = useState<PublicModelStatus>({ configured: false, provider: null, model: null });
+  const [workspace, setWorkspace] = useState<{ projects: Array<{ id: string; name: string }>; conversations: Array<{ id: string; projectId: string; title: string }> }>({ projects: [], conversations: [] });
   const messagesEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/conversation").then(async response => {
+    const conversationId = new URLSearchParams(window.location.search).get("conversationId");
+    fetch(`/api/conversation${conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : ""}`).then(async response => {
       if (!response.ok) throw new Error("Could not load saved conversation. Reload to retry.");
       const saved = await response.json();
       if (active) { controller.restore(saved); setLoaded(true); }
     }).catch(e => { if (active) setLoadError(e.message); });
     return () => { active = false; };
   }, [controller]);
+  useEffect(() => { void fetch("/api/workspace").then(r => r.json()).then(setWorkspace).catch(() => undefined); }, []);
+  async function createConversation(projectId: string) { const r = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "conversation", projectId }) }); const v = await r.json(); if (r.ok && v.conversation) window.location.href = `/?conversationId=${encodeURIComponent(v.conversation.id)}`; }
+  async function createProject() { const r = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "project" }) }); const v = await r.json(); if (r.ok && v.project) { await createConversation(v.project.id); } }
 
   useEffect(() => {
     void fetch("/api/status")
@@ -64,6 +69,7 @@ export default function ConversationPage() {
 
   return (
     <main className="app-shell">
+      <aside className="workspace-sidebar"><div className="workspace-title"><strong>Workspace</strong><button type="button" onClick={() => void createProject()} title="New project" aria-label="New project"><FolderPlus size={16} /></button></div>{workspace.projects.map(project => <section key={project.id} className="workspace-project"><h2>{project.name}<button type="button" onClick={() => void createConversation(project.id)} title="New conversation" aria-label={`New conversation in ${project.name}`}><Plus size={14} /></button></h2>{workspace.conversations.filter(c => c.projectId === project.id).map(conversation => <a className={new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("conversationId") === conversation.id ? "active" : ""} key={conversation.id} href={`/?conversationId=${encodeURIComponent(conversation.id)}`}>{conversation.title}</a>)}</section>)}</aside>
       <header className="topbar">
         <a className="brand" href="#conversation" aria-label="Unjot conversation">
           <span className="brand-mark"><MessageSquareText size={19} strokeWidth={2.1} /></span>

@@ -7,9 +7,9 @@ import { PersonalReads } from "./personal-reads.ts";
 import type { LearnerStore } from "./learner-store.ts";
 import type { LlmConfig } from "./llm-config.ts";
 
-export async function sendLearningTurn(options: { store: LearnerStore; graph: LexicalGraph; config: LlmConfig; id: string; text: string; correctionMode: boolean; fetcher?: typeof fetch }) {
+export async function sendLearningTurn(options: { store: LearnerStore; graph: LexicalGraph; config: LlmConfig; id: string; text: string; correctionMode: boolean; conversationId?: string; fetcher?: typeof fetch }) {
   const { store, graph, config, fetcher } = options;
-  let submission = store.begin(options.id, options.text, options.correctionMode);
+  let submission = store.begin(options.id, options.text, options.correctionMode, options.conversationId);
   if (submission.reply) return submission.reply;
   const owner = store.claim(submission.id);
   try {
