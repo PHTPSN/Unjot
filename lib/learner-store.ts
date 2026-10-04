@@ -41,7 +41,7 @@ export class LearnerStore {
     });
     this.sql.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const version = Number(this.sql.prepare("PRAGMA user_version").get()!.user_version);
-    if (version > 2) throw new Error("Learner database is newer than this application.");
+    if (version > 3) throw new Error("Learner database is newer than this application.");
     if (version === 0) this.transaction(() => {
       this.sql.exec(`
         CREATE TABLE settings (key TEXT PRIMARY KEY, body TEXT NOT NULL);
@@ -53,7 +53,10 @@ export class LearnerStore {
         CREATE TABLE observation_decision (submission_id TEXT PRIMARY KEY REFERENCES submission(id), body TEXT NOT NULL);
         CREATE TABLE reply_analysis (assistant_turn_id TEXT PRIMARY KEY REFERENCES conversation_turn(id), contract_version TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage));
-        PRAGMA user_version=2;
+        CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE conversation (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project(id), title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
+        CREATE INDEX conversation_project ON conversation(project_id, updated_at DESC);
+        PRAGMA user_version=3;
       `);
       this.setting("device", randomUUID()); this.setting("conversation-context", randomUUID()); this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES); this.setting("correction", false);
     });
@@ -61,6 +64,8 @@ export class LearnerStore {
       this.sql.exec("CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage)); PRAGMA user_version=2;");
       this.sql.prepare("INSERT OR IGNORE INTO settings(key,body) VALUES (?,?)").run("conversation-context", JSON.stringify(randomUUID()));
     });
+    if (version === 2) this.transaction(() => { this.migrateWorkspace(); this.sql.exec("PRAGMA user_version=3;"); });
+    this.ensureWorkspace();
   }
   close() { this.sql.close(); }
   turn(id: string): ConversationTurn | null {
@@ -98,6 +103,12 @@ export class LearnerStore {
     const rows = await this.orm.select().from(turnsTable).orderBy(desc(turnsTable.sequence)).limit(limit);
     return rows.reverse().map(row => JSON.parse(row.body));
   }
+  projects() { const rows = this.sql.prepare("SELECT id,name,created_at AS createdAt,updated_at AS updatedAt,archived FROM project WHERE archived=0 ORDER BY updated_at DESC").all() as Array<{ id: string; name: string; createdAt: string; updatedAt: string; archived: number }>; return rows.map(row => ({ ...row, archived: Boolean(row.archived) })); }
+  conversations(projectId?: string) { const query = projectId ? "SELECT id,project_id AS projectId,title,created_at AS createdAt,updated_at AS updatedAt,archived FROM conversation WHERE project_id=? AND archived=0 ORDER BY updated_at DESC" : "SELECT id,project_id AS projectId,title,created_at AS createdAt,updated_at AS updatedAt,archived FROM conversation WHERE archived=0 ORDER BY updated_at DESC"; const rows = this.sql.prepare(query).all(...(projectId ? [projectId] : [])) as Array<{ id: string; projectId: string; title: string; createdAt: string; updatedAt: string; archived: number }>; return rows.map(row => ({ ...row, archived: Boolean(row.archived) })); }
+  createProject(name = "My language") { const id = randomUUID(); const now = new Date().toISOString(); this.sql.prepare("INSERT INTO project VALUES (?,?,?,?,0)").run(id, name.trim() || "My language", now, now); return this.projects().find(p => p.id === id)!; }
+  createConversation(projectId: string, title = "New conversation") { if (!this.sql.prepare("SELECT id FROM project WHERE id=? AND archived=0").get(projectId)) throw new StoreError("Project not found.", 404); const id = randomUUID(); const now = new Date().toISOString(); this.sql.prepare("INSERT INTO conversation VALUES (?,?,?,?,0)").run(id, projectId, title.trim() || "New conversation", now, now); return this.conversations(projectId).find(c => c.id === id)!; }
+  renameConversation(id: string, title: string) { this.sql.prepare("UPDATE conversation SET title=?,updated_at=? WHERE id=?").run(title.trim() || "New conversation", new Date().toISOString(), id); return this.conversations().find(c => c.id === id) ?? null; }
+  historyForConversation(id: string, limit = 100) { return this.sql.prepare("SELECT body FROM conversation_turn WHERE json_extract(body,'$.conversationId')=? ORDER BY sequence DESC LIMIT ?").all(id, limit).reverse().map(row => JSON.parse(String(row.body))); }
   private insertTurn(turn: ConversationTurn) { this.sql.prepare("INSERT INTO conversation_turn(sequence,id,body) VALUES (?,?,?)").run(turn.sequence, turn.id, JSON.stringify(turn)); }
   private nextSequence(): number { return Number(this.sql.prepare("SELECT COALESCE(MAX(sequence),0)+1 AS n FROM conversation_turn").get()!.n); }
   private upsertStage(id: string, stage: WorkflowStage, status: WorkflowStageStatus, body: unknown = null) {
@@ -130,7 +141,7 @@ export class LearnerStore {
     return row ? JSON.parse(String(row.body)) : null;
   }
   private putSubmission(s: Submission) { this.sql.prepare("UPDATE submission SET body=?,finished=? WHERE id=?").run(JSON.stringify(s), s.reply ? 1 : 0, s.id); }
-  begin(id: string, original: string, correctionMode: boolean): Submission {
+  begin(id: string, original: string, correctionMode: boolean, conversationId = this.defaultConversationId()): Submission {
     if (!id || id.length > 200 || !original.trim() || original.length > 4000 || typeof correctionMode !== "boolean") throw new StoreError("Invalid submission.");
     return this.transaction(() => {
       const existing = this.getSubmission(id);
@@ -139,7 +150,8 @@ export class LearnerStore {
         return existing;
       }
       if (this.sql.prepare("SELECT id FROM submission WHERE finished=0 LIMIT 1").get()) throw new StoreError("Retry the unfinished message before sending another.", 409);
-      const turn: ConversationTurn = { id, conversationId: "local-conversation", sequence: this.nextSequence(), role: "learner", contextId: this.contextId, text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
+      if (!this.sql.prepare("SELECT id FROM conversation WHERE id=? AND archived=0").get(conversationId)) throw new StoreError("Conversation not found.", 404);
+      const turn: ConversationTurn = { id, conversationId, sequence: this.nextSequence(), role: "learner", contextId: this.contextId, text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
       const submission: Submission = { id, turn, preferences: this.preferences(), evidenceDone: false, stateRevision: null, reply: null };
       this.insertTurn(turn);
       this.sql.prepare("INSERT INTO submission(id,body) VALUES (?,?)").run(id, JSON.stringify(submission));
@@ -147,6 +159,22 @@ export class LearnerStore {
       this.upsertStage(id, "snapshot_pinned", "accepted", { stateRevision: this.revision(), profileVersion: submission.preferences.profileVersion });
       return submission;
     });
+  }
+  defaultConversationId() { return String(this.readSetting("default-conversation")); }
+  private migrateWorkspace() { const now = new Date().toISOString(); const pid = randomUUID(); this.sql.prepare("INSERT INTO project VALUES (?,?,?,?,0)").run(pid, "My language", now, now); const ids = this.sql.prepare("SELECT DISTINCT json_extract(body,'$.conversationId') AS id FROM conversation_turn").all().map(r => String(r.id || "local-conversation")); for (const id of ids) this.sql.prepare("INSERT OR IGNORE INTO conversation VALUES (?,?,?,?,0)").run(id, pid, id === "local-conversation" ? "Conversation" : "Learning graph demo", now, now); this.setting("default-conversation", ids[0] || "local-conversation"); }
+  private ensureWorkspace() {
+    const count = Number(this.sql.prepare("SELECT COUNT(*) AS n FROM project").get()!.n);
+    if (!count) this.migrateWorkspace();
+    const configured = String(this.readSetting("default-conversation") ?? "");
+    const existing = configured && this.sql.prepare("SELECT id FROM conversation WHERE id=? AND archived=0").get(configured);
+    if (!existing) {
+      const first = this.sql.prepare("SELECT id FROM conversation WHERE archived=0 ORDER BY updated_at ASC LIMIT 1").get() as { id?: string } | undefined;
+      if (first?.id) this.setting("default-conversation", first.id);
+      else {
+        const project = this.sql.prepare("SELECT id FROM project WHERE archived=0 ORDER BY created_at ASC LIMIT 1").get() as { id?: string } | undefined;
+        if (project?.id) { const id = randomUUID(); const now = new Date().toISOString(); this.sql.prepare("INSERT INTO conversation(id,project_id,title,created_at,updated_at,archived) VALUES (?,?,?,?,?,0)").run(id, project.id, "Conversation", now, now); this.setting("default-conversation", id); }
+      }
+    }
   }
   claim(id: string): string {
     const owner = randomUUID();
