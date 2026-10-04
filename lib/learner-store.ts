@@ -18,7 +18,7 @@ const turnsTable = sqliteTable("conversation_turn", { sequence: integer("sequenc
 
 export type Submission = {
   id: string; turn: ConversationTurn; preferences: ResponsePreferences;
-  evidenceDone: boolean; stateRevision: string | null; reply: AssistantReply | null;
+  evidenceDone: boolean; stateRevision: string | null; snapshotRevision?: string; reply: AssistantReply | null;
 };
 export class StoreError extends Error {
   readonly status: number;
@@ -41,7 +41,7 @@ export class LearnerStore {
     });
     this.sql.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const version = Number(this.sql.prepare("PRAGMA user_version").get()!.user_version);
-    if (version > 2) throw new Error("Learner database is newer than this application.");
+    if (version > 3) throw new Error("Learner database is newer than this application.");
     if (version === 0) this.transaction(() => {
       this.sql.exec(`
         CREATE TABLE settings (key TEXT PRIMARY KEY, body TEXT NOT NULL);
@@ -53,7 +53,8 @@ export class LearnerStore {
         CREATE TABLE observation_decision (submission_id TEXT PRIMARY KEY REFERENCES submission(id), body TEXT NOT NULL);
         CREATE TABLE reply_analysis (assistant_turn_id TEXT PRIMARY KEY REFERENCES conversation_turn(id), contract_version TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage));
-        PRAGMA user_version=2;
+        CREATE TABLE workflow_run (id TEXT PRIMARY KEY, kind TEXT NOT NULL, context_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL);
+        PRAGMA user_version=3;
       `);
       this.setting("device", randomUUID()); this.setting("conversation-context", randomUUID()); this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES); this.setting("correction", false);
     });
@@ -61,6 +62,7 @@ export class LearnerStore {
       this.sql.exec("CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage)); PRAGMA user_version=2;");
       this.sql.prepare("INSERT OR IGNORE INTO settings(key,body) VALUES (?,?)").run("conversation-context", JSON.stringify(randomUUID()));
     });
+    if (version <= 2) this.transaction(() => { this.sql.exec("CREATE TABLE IF NOT EXISTS workflow_run (id TEXT PRIMARY KEY, kind TEXT NOT NULL, context_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL); PRAGMA user_version=3;"); });
   }
   close() { this.sql.close(); }
   turn(id: string): ConversationTurn | null {
@@ -76,16 +78,40 @@ export class LearnerStore {
   private readSetting<T>(key: string): T { return JSON.parse(String(this.sql.prepare("SELECT body FROM settings WHERE key=?").get(key)!.body)); }
   get deviceId(): string { return this.readSetting("device"); }
   get contextId(): string { return this.readSetting("conversation-context"); }
-  preferences(): ResponsePreferences { return this.readSetting("preferences"); }
+  createWorkflowContext(kind: "scenario" | "explain" | "rewrite" | "reading" | "listening" | "review"): string { return `${kind}:${randomUUID()}`; }
+  saveWorkflowRun(input: { id: string; kind: string; contextId: string; body: unknown }) {
+    if (!input.id || input.id.length > 200 || !input.kind || !input.contextId) throw new StoreError("Invalid workflow run.");
+    this.sql.prepare("INSERT INTO workflow_run(id,kind,context_id,body,created_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body").run(input.id, input.kind, input.contextId, JSON.stringify(input.body), new Date().toISOString());
+  }
+  workflowRun(id: string) {
+    const row = this.sql.prepare("SELECT id,kind,context_id,body,created_at FROM workflow_run WHERE id=?").get(id);
+    return row ? { id: String(row.id), kind: String(row.kind), contextId: String(row.context_id), body: JSON.parse(String(row.body)), createdAt: String(row.created_at) } : null;
+  }
+  workflowRuns(kind?: string) {
+    const rows = kind ? this.sql.prepare("SELECT id,kind,context_id,body,created_at FROM workflow_run WHERE kind=? ORDER BY created_at DESC").all(kind) : this.sql.prepare("SELECT id,kind,context_id,body,created_at FROM workflow_run ORDER BY created_at DESC").all();
+    return rows.map(row => ({ id: String(row.id), kind: String(row.kind), contextId: String(row.context_id), body: JSON.parse(String(row.body)), createdAt: String(row.created_at) }));
+  }
+  preferences(): ResponsePreferences {
+    const raw = this.readSetting<Partial<ResponsePreferences> & { maxNewExpressions?: unknown }>("preferences");
+    const migrated: ResponsePreferences = {
+      ...DEFAULT_RESPONSE_PREFERENCES,
+      ...raw,
+      contractVersion: DEFAULT_RESPONSE_PREFERENCES.contractVersion,
+      complexityPolicyVersion: DEFAULT_RESPONSE_PREFERENCES.complexityPolicyVersion,
+      orchestrationMode: raw.orchestrationMode === "stepwise" ? "stepwise" : "synthesis",
+      starterSetVersion: raw.startingLevel ? STARTER_SET.version : null,
+    };
+    return migrated;
+  }
   correctionMode(): boolean { return this.readSetting("correction"); }
   savePreferences(patch: Record<string, unknown>): ResponsePreferences {
-    const allowed = ["maxUnfamiliarRatio", "maxNewExpressions", "allowChineseSupport", "startingLevel", "correctionMode"];
+    const allowed = ["maxUnfamiliarRatio", "maxNewExpressions", "allowChineseSupport", "startingLevel", "orchestrationMode", "correctionMode"];
     if (!Object.keys(patch).length || Object.keys(patch).some(k => !allowed.includes(k))) throw new StoreError("Unsupported preference field.");
     return this.transaction(() => {
-      const { correctionMode, ...responsePatch } = patch;
+      const { correctionMode, maxNewExpressions: _legacyDistinctLimit, ...responsePatch } = patch;
       const next = { ...this.preferences(), ...responsePatch, profileVersion: randomUUID() } as ResponsePreferences;
       next.starterSetVersion = next.startingLevel ? STARTER_SET.version : null;
-      if (!validResponsePreferences(next) || (correctionMode !== undefined && typeof correctionMode !== "boolean")) throw new StoreError("Invalid response preferences.");
+      if (!validResponsePreferences(next) || (correctionMode !== undefined && typeof correctionMode !== "boolean") || (next.orchestrationMode !== "synthesis" && next.orchestrationMode !== "stepwise")) throw new StoreError("Invalid response preferences.");
       this.setting("preferences", next);
       if (correctionMode !== undefined) this.setting("correction", correctionMode);
       return next;
@@ -123,11 +149,19 @@ export class LearnerStore {
     } };
   }
   workflowStages(id: string): WorkflowStageRecord[] {
-    return this.sql.prepare("SELECT submission_id,stage,attempt,status,body,updated_at FROM workflow_stage WHERE submission_id=? ORDER BY rowid").all(id).map(row => ({ version: WORKFLOW_VERSION, submissionId: String(row.submission_id), stage: row.stage as WorkflowStage, attempt: Number(row.attempt), status: row.status as WorkflowStageStatus, reasonCode: row.status === "retryable_error" ? "model_unavailable" : "validated", policyVersion: "m4-evidence-v1", inputRefs: [id], outputRefs: [], body: JSON.parse(String(row.body)), updatedAt: String(row.updated_at) }));
+    return this.sql.prepare("SELECT submission_id,stage,attempt,status,body,updated_at FROM workflow_stage WHERE submission_id=? ORDER BY rowid").all(id).map(row => {
+      const body = JSON.parse(String(row.body)) as { reason?: string } | null;
+      const reason = body?.reason ?? "";
+      const reasonCode = row.status !== "retryable_error" ? "validated" : /invalid|structured|budget/i.test(reason) ? "invalid_model_output" : "model_unavailable";
+      return { version: WORKFLOW_VERSION, submissionId: String(row.submission_id), stage: row.stage as WorkflowStage, attempt: Number(row.attempt), status: row.status as WorkflowStageStatus, reasonCode, policyVersion: "m4-evidence-v1", inputRefs: [id], outputRefs: [], body, updatedAt: String(row.updated_at) };
+    });
   }
   getSubmission(id: string): Submission | null {
     const row = this.sql.prepare("SELECT body FROM submission WHERE id=?").get(id);
-    return row ? JSON.parse(String(row.body)) : null;
+    if (!row) return null;
+    const submission = JSON.parse(String(row.body)) as Submission;
+    if (!submission.snapshotRevision) submission.snapshotRevision = submission.stateRevision ?? "0";
+    return submission;
   }
   private putSubmission(s: Submission) { this.sql.prepare("UPDATE submission SET body=?,finished=? WHERE id=?").run(JSON.stringify(s), s.reply ? 1 : 0, s.id); }
   begin(id: string, original: string, correctionMode: boolean): Submission {
@@ -140,11 +174,12 @@ export class LearnerStore {
       }
       if (this.sql.prepare("SELECT id FROM submission WHERE finished=0 LIMIT 1").get()) throw new StoreError("Retry the unfinished message before sending another.", 409);
       const turn: ConversationTurn = { id, conversationId: "local-conversation", sequence: this.nextSequence(), role: "learner", contextId: this.contextId, text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
-      const submission: Submission = { id, turn, preferences: this.preferences(), evidenceDone: false, stateRevision: null, reply: null };
+      const snapshotRevision = this.revision();
+      const submission: Submission = { id, turn, preferences: this.preferences(), evidenceDone: false, stateRevision: snapshotRevision, snapshotRevision, reply: null };
       this.insertTurn(turn);
       this.sql.prepare("INSERT INTO submission(id,body) VALUES (?,?)").run(id, JSON.stringify(submission));
       this.upsertStage(id, "captured", "accepted", { turnId: turn.id, preferences: submission.preferences });
-      this.upsertStage(id, "snapshot_pinned", "accepted", { stateRevision: this.revision(), profileVersion: submission.preferences.profileVersion });
+      this.upsertStage(id, "snapshot_pinned", "accepted", { stateRevision: snapshotRevision, profileVersion: submission.preferences.profileVersion });
       return submission;
     });
   }
@@ -181,6 +216,18 @@ export class LearnerStore {
       s.evidenceDone = true; s.stateRevision = this.revision(); this.putSubmission(s); return s;
     });
   }
+  /** Commit a completed Evidence lane after response publication. Idempotent by submission. */
+  commitEvidence(id: string, decisions: readonly Decision[]): Submission {
+    return this.transaction(() => {
+      const s = this.getSubmission(id);
+      if (!s) throw new StoreError("Unknown submission.", 404);
+      if (s.evidenceDone) return s;
+      this.append(decisions.flatMap(d => d.event ? [d.event] : []));
+      this.sql.prepare("INSERT OR IGNORE INTO observation_decision VALUES (?,?)").run(id, JSON.stringify(decisions));
+      this.upsertStage(id, "evidence_committed", "accepted", { stateRevision: this.revision(), accepted: decisions.filter(d => d.event).length });
+      s.evidenceDone = true; s.stateRevision = this.revision(); this.putSubmission(s); return s;
+    });
+  }
   finish(id: string, owner: string, reply: AssistantReply, assistant: ConversationTurn, decisions: readonly Decision[], analysis?: ReplyAnalysis) {
     return this.transaction(() => {
       this.checkOwner(id, owner);
@@ -189,12 +236,14 @@ export class LearnerStore {
       const savedAssistant = { ...assistant, sequence: this.nextSequence() };
       this.insertTurn(savedAssistant);
       this.append(decisions.flatMap(d => d.event ? [d.event] : []));
-      if (analysis) this.sql.prepare("INSERT INTO reply_analysis VALUES (?,?,?)").run(assistant.id, analysis.contractVersion, JSON.stringify(analysis));
-      this.upsertStage(id, "reply_generated", "accepted", { assistantTurnId: savedAssistant.id });
-      this.upsertStage(id, "reply_checked", "accepted", { assistantTurnId: savedAssistant.id });
+      const savedAnalysis = analysis ? { ...analysis, assistantTurnId: savedAssistant.id } : undefined;
+      if (savedAnalysis) this.sql.prepare("INSERT INTO reply_analysis VALUES (?,?,?)").run(savedAssistant.id, savedAnalysis.contractVersion, JSON.stringify(savedAnalysis));
+      this.upsertStage(id, "reply_planned", "accepted", { plan: savedAnalysis?.plan ?? null });
+      this.upsertStage(id, "reply_generated", "accepted", { assistantTurnId: savedAssistant.id, analysis: savedAnalysis ?? null });
+      this.upsertStage(id, "reply_checked", "accepted", { assistantTurnId: savedAssistant.id, analysis: savedAnalysis ?? null });
       this.upsertStage(id, "support_validated", "accepted", { supplied: decisions.filter(d => d.event).length });
       this.upsertStage(id, "published", "accepted", { assistantTurnId: savedAssistant.id });
-      s.reply = { ...reply, assistantTurn: savedAssistant }; this.putSubmission(s); return s.reply;
+      s.reply = { ...reply, assistantTurn: savedAssistant, analysis: savedAnalysis }; this.putSubmission(s); return s.reply;
     });
   }
   pending(): Submission | null {
@@ -226,6 +275,10 @@ export class LearnerStore {
   itemEvidence(itemId: SenseId, limit = 50) {
     if (limit < 1 || limit > 50) throw new StoreError("Evidence limit must be between 1 and 50.");
     return this.evidence(this.revision(), itemId).slice(-limit);
+  }
+  replyAnalysis(assistantTurnId: string): ReplyAnalysis | null {
+    const row = this.sql.prepare("SELECT body FROM reply_analysis WHERE assistant_turn_id=?").get(assistantTurnId);
+    return row ? JSON.parse(String(row.body)) as ReplyAnalysis : null;
   }
 }
 

@@ -2,12 +2,12 @@ import type { EvidenceEvent } from "./evidence-event.ts";
 import type { LearnerItemState } from "./learner-item-state.ts";
 import type { LexicalItem } from "./lexical-item.ts";
 
-export const RESPONSE_CONTRACT_VERSION = "m3-response-v1" as const;
+export const RESPONSE_CONTRACT_VERSION = "m3-response-v2" as const;
 export const CORRECTED_STATE_CONTRACT_VERSION = "m5r-state-v1" as const;
 export const COMPREHENSION_POLICY_VERSION = "reading-v1" as const;
 export const SEGMENTATION_POLICY_VERSION = "english-units-v1" as const;
 export const COMPLEXITY_POLICY = {
-  version: "simple-reply-v1", maxWordsPerSentence: 20, maxClausesPerSentence: 2,
+  version: "simple-reply-v2", maxWordsPerSentence: 20, maxClausesPerSentence: 2,
   maxSubordinateDepth: 1, maxNewMeaningsPerSentence: 1,
   separateBlockMinUnits: 5,
 } as const;
@@ -16,6 +16,7 @@ export type SenseId = LexicalItem["id"];
 export type ReceptiveState = "unobserved" | "encountered" | "understood" | "needs_support";
 export type ProductionState = "none" | "assisted_production" | "spontaneous_production" | "repeated_independent_use";
 export type StartingLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+export type OrchestrationMode = "synthesis" | "stepwise";
 /** First-party conservative seed; not CEFR annotation supplied by OEWN. */
 export const STARTER_SET = {
   version: "unjot-starter-v1", source: "Unjot editorial seed, 2026-10-03", graphVersion: "oewn-2025",
@@ -26,9 +27,11 @@ export interface ResponsePreferences {
   contractVersion: typeof RESPONSE_CONTRACT_VERSION;
   profileVersion: string;
   maxUnfamiliarRatio: number;
-  maxNewExpressions: number;
+  /** Legacy persisted value; M6 no longer exposes this as a user setting. */
+  maxNewExpressions?: number;
   supportLanguage: "zh";
   allowChineseSupport: boolean;
+  orchestrationMode: OrchestrationMode;
   startingLevel: StartingLevel | null;
   starterSetVersion: typeof STARTER_SET.version | null;
   complexityPolicyVersion: typeof COMPLEXITY_POLICY.version;
@@ -36,16 +39,17 @@ export interface ResponsePreferences {
 }
 export const DEFAULT_RESPONSE_PREFERENCES: Readonly<ResponsePreferences> = Object.freeze({
   contractVersion: RESPONSE_CONTRACT_VERSION, profileVersion: "default-v1",
-  maxUnfamiliarRatio: 0.05, maxNewExpressions: 2, supportLanguage: "zh", allowChineseSupport: true,
+  maxUnfamiliarRatio: 0.05, maxNewExpressions: 2, supportLanguage: "zh", allowChineseSupport: true, orchestrationMode: "synthesis",
   startingLevel: null, starterSetVersion: null,
   complexityPolicyVersion: COMPLEXITY_POLICY.version, comprehensionPolicyVersion: COMPREHENSION_POLICY_VERSION,
 });
-export const PREFERENCE_BOUNDS = { minRatio: 0, maxRatio: 1, minNewExpressions: 0, maxNewExpressions: 20 } as const;
+export const PREFERENCE_BOUNDS = { minRatio: 0, maxRatio: 1 } as const;
 export function validResponsePreferences(value: ResponsePreferences): boolean {
   return value.contractVersion === RESPONSE_CONTRACT_VERSION && typeof value.profileVersion === "string" && value.profileVersion.length > 0 &&
     Number.isFinite(value.maxUnfamiliarRatio) && value.maxUnfamiliarRatio >= 0 && value.maxUnfamiliarRatio <= 1 &&
-    Number.isInteger(value.maxNewExpressions) && value.maxNewExpressions >= 0 && value.maxNewExpressions <= 20 &&
+    (value.maxNewExpressions === undefined || (Number.isInteger(value.maxNewExpressions) && value.maxNewExpressions >= 0 && value.maxNewExpressions <= 20)) &&
     value.supportLanguage === "zh" && typeof value.allowChineseSupport === "boolean" &&
+    (value.orchestrationMode === "synthesis" || value.orchestrationMode === "stepwise") &&
     (value.startingLevel === null || ["A1", "A2", "B1", "B2", "C1", "C2"].includes(value.startingLevel)) &&
     (value.starterSetVersion === null || (value.starterSetVersion === STARTER_SET.version && value.startingLevel !== null)) &&
     value.complexityPolicyVersion === COMPLEXITY_POLICY.version && value.comprehensionPolicyVersion === COMPREHENSION_POLICY_VERSION;
@@ -119,11 +123,16 @@ export interface ResponsePlan {
   stateRevision: string;
   graphVersion: "oewn-2025";
   segmentationPolicyVersion: typeof SEGMENTATION_POLICY_VERSION;
+  orchestrationMode: OrchestrationMode;
+  strategyVersion: "m6-response-v1";
 }
 export interface BudgetResult {
   englishOccurrences: number; unfamiliarOccurrences: number; unfamiliarRatio: number;
   distinctUnfamiliarKeys: readonly string[]; provisionalOccurrences: number;
   ratioPassed: boolean; distinctPassed: boolean; complexityPassed: boolean; passed: boolean;
+  /** Unresolved surface forms are retained for analysis and never treated as known. */
+  unresolvedOccurrences?: number;
+  unresolvedKeys?: readonly string[];
 }
 export interface BlockAnalysis {
   id: string; kind: "reply" | "correction" | "example"; text: string;
@@ -139,4 +148,6 @@ export interface ReplyAnalysis {
   supportSpans: readonly { blockId: string; span: TextSpan; itemId: SenseId | null }[];
   languageDecision: "english" | "mixed" | "chinese";
   generationAttempts: 1 | 2 | 3;
+  orchestrationMode: OrchestrationMode;
+  strategyVersion: "m6-response-v1";
 }

@@ -18,7 +18,11 @@ export async function GET(request: Request) {
           modality: "reading", stateRevision: inspection.stateRevision, profileVersion: personal.preferences.profileVersion, policyVersion: "reading-v1" }))[0] : null;
         return { ...item, lexical, assessment };
       }));
-      return Response.json({ ...inspection, items }, { headers: { "cache-control": "no-store" } });
+      const analyses = store.turns().filter(turn => turn.role === "assistant").flatMap(turn => {
+        const analysis = store.replyAnalysis(turn.id);
+        return analysis ? [{ assistantTurnId: turn.id, analysis }] : [];
+      });
+      return Response.json({ ...inspection, items, analyses, workflowRuns: store.workflowRuns() }, { headers: { "cache-control": "no-store" } });
     }
     if (url.searchParams.get("evidence")) return Response.json(await reads().get_item_evidence({ itemId: url.searchParams.get("evidence")! as `sense:${string}`, stateRevision: url.searchParams.get("revision") ?? store.revision(), limit: Number(url.searchParams.get("limit") ?? 20) }));
     return Response.json({ stateRevision: store.revision(), states: store.states() });

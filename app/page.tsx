@@ -72,6 +72,7 @@ export default function ConversationPage() {
         <div className="topbar-meta">
           <a href="/knowledge">Knowledge graph</a>
           <a href="/learning">Learning evidence</a>
+          <a href="/tools">M7 tools</a>
           <span className={`connection-dot ${modelStatus.configured ? "ready" : "not-ready"}`} />
           <span>{modelStatus.configured ? `${modelStatus.provider} · ${modelStatus.model}` : "Model setup needed"}</span>
         </div>

@@ -19,8 +19,8 @@ export function ResponseSettings({ onSaving }: { onSaving: (saving: boolean) => 
     if (!preferences || saving) return;
     setSaving(true); onSaving(true); setMessage("");
     try {
-      const { maxUnfamiliarRatio, maxNewExpressions, allowChineseSupport, startingLevel } = preferences;
-      const r = await fetch("/api/response-preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ maxUnfamiliarRatio, maxNewExpressions, allowChineseSupport, startingLevel }) });
+      const { maxUnfamiliarRatio, allowChineseSupport, startingLevel, orchestrationMode } = preferences;
+      const r = await fetch("/api/response-preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ maxUnfamiliarRatio, allowChineseSupport, startingLevel, orchestrationMode }) });
       const value = await r.json();
       if (!r.ok) throw new Error(value.error ?? "Could not save preferences.");
       setPreferences(value); setMessage("Saved. Applies to your next message; retries keep their original settings.");
@@ -29,11 +29,13 @@ export function ResponseSettings({ onSaving }: { onSaving: (saving: boolean) => 
   }
   return <details className="response-settings">
     <summary>Response preferences</summary>
-    <p>Choose how much new English to introduce. These settings do not mark expressions as learned. Strict reply limits are coming in the next milestone.</p>
+    <p>Choose how much new English to introduce. These settings do not mark expressions as learned.</p>
     {preferences && <form onSubmit={save}>
       <fieldset disabled={saving}>
         <label>Unfamiliar English ratio (0–1)<input type="number" min="0" max="1" step="0.01" required value={preferences.maxUnfamiliarRatio} onChange={e => setPreferences({ ...preferences, maxUnfamiliarRatio: e.target.valueAsNumber })} /></label>
-        <label>Different new expressions (0–20)<input type="number" min="0" max="20" step="1" required value={preferences.maxNewExpressions} onChange={e => setPreferences({ ...preferences, maxNewExpressions: e.target.valueAsNumber })} /></label>
+        <label>Reply strategy<select value={preferences.orchestrationMode} onChange={e => setPreferences({ ...preferences, orchestrationMode: e.target.value as ResponsePreferences["orchestrationMode"] })}>
+          <option value="synthesis">Synthesis</option><option value="stepwise">Stepwise</option>
+        </select></label>
         <label>Starting level (optional)<select value={preferences.startingLevel ?? ""} onChange={e => setPreferences({ ...preferences, startingLevel: (e.target.value || null) as ResponsePreferences["startingLevel"] })}>
           <option value="">No estimate</option>{["A1", "A2", "B1", "B2", "C1", "C2"].map(level => <option key={level}>{level}</option>)}
         </select></label>

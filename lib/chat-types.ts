@@ -1,5 +1,6 @@
 import type { LexicalItem } from "../packages/protocol/src/lexical-item.ts";
 import type { GraphNode } from "../packages/lexical-core/src/graph.ts";
+import type { ReplyAnalysis } from "../packages/protocol/src/comprehension.ts";
 
 export type LexicalToolResult =
   | { readonly tool: "find_by_form"; readonly form: string; readonly result: readonly LexicalItem[] }
@@ -11,6 +12,7 @@ export type AssistantReply = {
   readonly correction: string | null;
   readonly lookupResults: readonly LexicalToolResult[];
   readonly assistantTurn?: import("../packages/protocol/src/conversation-turn.ts").ConversationTurn;
+  readonly analysis?: ReplyAnalysis;
 };
 
 export type PublicModelStatus = {

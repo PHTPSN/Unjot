@@ -24,10 +24,12 @@ export const responsePlanFixture = {
   contractVersion: RESPONSE_CONTRACT_VERSION, submissionId: "fixture-submission", contentToAnswer: "Explain the financial meaning of bank.",
   familiarCandidateIds: [], unfamiliarTargetIds: [], preferences: DEFAULT_RESPONSE_PREFERENCES,
   complexity: COMPLEXITY_POLICY, stateRevision: "fixture-empty", graphVersion: "oewn-2025", segmentationPolicyVersion: SEGMENTATION_POLICY_VERSION,
+  orchestrationMode: "synthesis", strategyVersion: "m6-response-v1",
 } as const satisfies ResponsePlan;
 const chineseBudget = { englishOccurrences: 0, unfamiliarOccurrences: 0, unfamiliarRatio: 0, distinctUnfamiliarKeys: [], provisionalOccurrences: 0, ratioPassed: true, distinctPassed: true, complexityPassed: true, passed: true } as const;
 export const replyAnalysisFixture = {
   contractVersion: RESPONSE_CONTRACT_VERSION, assistantTurnId: "fixture-assistant", submissionId: "fixture-submission", plan: responsePlanFixture,
   blocks: [{ id: "reply", kind: "reply", text: "这里指接受存款、发放贷款的金融机构。", units: [], assessments: [], budget: chineseBudget }],
   combinedBudget: chineseBudget, supportSpans: [], languageDecision: "chinese", generationAttempts: 1,
+  orchestrationMode: "synthesis", strategyVersion: "m6-response-v1",
 } as const satisfies ReplyAnalysis;

@@ -1,5 +1,42 @@
 # Development log
 
+## 2026-10-04 — M7 Explain and Scenario workflows
+
+Started the first M7 slice with explicit Explain and Scenario workflows. Explain
+resolves verified graph facts, reads the corrected learner projection, validates
+contextual generated language with the M6 budget, and records an explicit target
+exception without creating Evidence. Scenario generates a structured situation,
+learner/partner roles and an opening prompt, assigns a real workflow context, and
+does not credit unobserved success. Both workflows have local API routes and a
+browser tools page; Rewrite, Reading, Listening and Review remain subsequent M7
+slices.
+
+### 中文
+
+开始 M7 的第一阶段，实现明确的 Explain 和 Scenario 工作流。Explain 解析已核实的图谱事实，
+读取修正后的学习者投影，使用 M6 预算校验语境生成语言，并记录明确的目标例外但不创建 Evidence。
+Scenario 生成结构化情境、学习者/伙伴角色和开场提示，分配真实的工作流上下文，不给未观察到的成功记能力。
+两个工作流都有本地 API 路由和浏览器工具页；Rewrite、Reading、Listening 和 Review 属于后续 M7 阶段。
+
+## 2026-10-04 — M6 learner-aware checked replies
+
+Started M6 on `feat/m3-knowledge-graph-contracts`. New submissions use the
+versioned `m3-response-v2` contract, capture an orchestration mode, pin the
+learner state revision, and run response generation against that snapshot while
+the Evidence lane may complete independently. Synthesis and stepwise drafts are
+validated outside the model with UTF-16 English-unit segmentation, comprehension
+reads, unfamiliar-language budgets, unresolved-span retention, and complexity
+checks. One bounded simplification and one Chinese-support attempt are permitted;
+legacy `finish_response` submissions remain readable during migration.
+
+### 中文
+
+在 `feat/m3-knowledge-graph-contracts` 上开始 M6。新提交使用带版本的
+`m3-response-v2` 契约，记录编排模式并固定学习者状态版本；回复分支使用该快照，
+Evidence 分支可以独立完成。Synthesis 和 stepwise 草稿在模型外经过 UTF-16 英文单元
+切分、理解读取、陌生语言预算、未定位片段保留及复杂度检查。最多允许一次简化和一次中文
+辅助；迁移期间仍可读取旧的 `finish_response` 提交。
+
 ## 2026-10-03 — M3 full graph and contracts
 
 Created branch `feat/m3-knowledge-graph-contracts`. The Web repository now carries the pinned OEWN 2025 generated assets (420,050 nodes, 185,129 senses, 244,727 source relations, 4,353 shards) with the source archive hash, license and attribution in the manifest. The importer preserves the existing `figure out` identity and stable source IDs; `npm run graph:verify` checks shard placement, counts, forms and dangling targets.
