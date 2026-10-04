@@ -12,7 +12,7 @@
     "build": "next build",
     "graph:import": "node scripts/import-wordnet.mjs",
     "graph:verify": "node scripts/verify-graph.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/*.test.mjs packages/golden-tests/*.test.mjs",
     "check": "npm run typecheck && npm test"
   },
