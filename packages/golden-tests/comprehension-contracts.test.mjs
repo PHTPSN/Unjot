@@ -22,7 +22,8 @@ test("starter allowances cite exact meanings and a versioned source, without acc
 test("preference numeric bounds include zero novelty and reject invalid or unversioned settings", () => {
   assert.ok(validResponsePreferences(DEFAULT_RESPONSE_PREFERENCES));
   assert.ok(validResponsePreferences({ ...DEFAULT_RESPONSE_PREFERENCES, maxUnfamiliarRatio: 0, maxNewExpressions: 0 }));
-  for (const maxUnfamiliarRatio of [-1, 1.1, NaN, Infinity]) assert.equal(validResponsePreferences({ ...DEFAULT_RESPONSE_PREFERENCES, maxUnfamiliarRatio }), false);
+  assert.ok(validResponsePreferences({ ...DEFAULT_RESPONSE_PREFERENCES, maxUnfamiliarRatio: .3 }));
+  for (const maxUnfamiliarRatio of [-1, .31, 1.1, NaN, Infinity]) assert.equal(validResponsePreferences({ ...DEFAULT_RESPONSE_PREFERENCES, maxUnfamiliarRatio }), false);
   for (const maxNewExpressions of [-1, 21, 1.5]) assert.equal(validResponsePreferences({ ...DEFAULT_RESPONSE_PREFERENCES, maxNewExpressions }), false);
   assert.equal(validResponsePreferences({ ...DEFAULT_RESPONSE_PREFERENCES, starterSetVersion: STARTER_SET.version }), false);
 });

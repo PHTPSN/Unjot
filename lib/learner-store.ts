@@ -8,8 +8,9 @@ import { desc } from "drizzle-orm";
 import type { ConversationTurn } from "../packages/protocol/src/conversation-turn.ts";
 import type { EvidenceEvent } from "../packages/protocol/src/evidence-event.ts";
 import type { ReplyAnalysis, ResponsePreferences, SenseId } from "../packages/protocol/src/comprehension.ts";
-import { DEFAULT_RESPONSE_PREFERENCES, STARTER_SET, validResponsePreferences } from "../packages/protocol/src/comprehension.ts";
+import { DEFAULT_RESPONSE_PREFERENCES, PREFERENCE_BOUNDS, STARTER_SET, validResponsePreferences } from "../packages/protocol/src/comprehension.ts";
 import type { AssistantReply } from "./chat-types.ts";
+import type { PersistedAppSettings } from "./llm-config.ts";
 import { deriveCorrectedItemState, deriveItemState, type Decision } from "./evidence-policy.ts";
 import type { CorrectedLearnerItemRead } from "../packages/protocol/src/comprehension.ts";
 import { WORKFLOW_VERSION, type StageCheckpoint, type WorkflowStage, type WorkflowStageRecord, type WorkflowStageStatus } from "../packages/protocol/src/workflow.ts";
@@ -41,32 +42,58 @@ export class LearnerStore {
     });
     this.sql.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const version = Number(this.sql.prepare("PRAGMA user_version").get()!.user_version);
-    if (version > 4) throw new Error("Learner database is newer than this application.");
+    if (version > 5) throw new Error("Learner database is newer than this application.");
     if (version === 0) this.transaction(() => {
       this.sql.exec(`
         CREATE TABLE settings (key TEXT PRIMARY KEY, body TEXT NOT NULL);
-        CREATE TABLE conversation_turn (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, body TEXT NOT NULL);
-        CREATE TABLE submission (id TEXT PRIMARY KEY, body TEXT NOT NULL, finished INTEGER NOT NULL DEFAULT 0, lease_until INTEGER NOT NULL DEFAULT 0, owner TEXT);
-        CREATE TABLE evidence_event (ordinal INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, item_id TEXT NOT NULL, turn_id TEXT NOT NULL REFERENCES conversation_turn(id), body TEXT NOT NULL);
+        CREATE TABLE conversation_turn (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, conversation_id TEXT NOT NULL, body TEXT NOT NULL);
+        CREATE TABLE submission (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, body TEXT NOT NULL, finished INTEGER NOT NULL DEFAULT 0, lease_until INTEGER NOT NULL DEFAULT 0, owner TEXT);
+        CREATE TABLE evidence_event (ordinal INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, item_id TEXT NOT NULL, turn_id TEXT NOT NULL REFERENCES conversation_turn(id), conversation_id TEXT NOT NULL, state_revision INTEGER NOT NULL, body TEXT NOT NULL);
         CREATE INDEX evidence_item ON evidence_event(item_id, ordinal);
+        CREATE INDEX evidence_conversation ON evidence_event(conversation_id);
+        CREATE INDEX turn_conversation ON conversation_turn(conversation_id);
+        CREATE INDEX submission_conversation ON submission(conversation_id);
         CREATE TABLE learner_item_state (item_id TEXT PRIMARY KEY, revision TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE observation_decision (submission_id TEXT PRIMARY KEY REFERENCES submission(id), body TEXT NOT NULL);
         CREATE TABLE reply_analysis (assistant_turn_id TEXT PRIMARY KEY REFERENCES conversation_turn(id), contract_version TEXT NOT NULL, body TEXT NOT NULL);
         CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage));
         CREATE TABLE workflow_run (id TEXT PRIMARY KEY, kind TEXT NOT NULL, context_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
-        CREATE TABLE conversation (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project(id), title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE conversation (id TEXT PRIMARY KEY, project_id TEXT REFERENCES project(id) ON DELETE SET NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
         CREATE INDEX conversation_project ON conversation(project_id, updated_at DESC);
-        PRAGMA user_version=3;
+        PRAGMA user_version=5;
       `);
-      this.setting("device", randomUUID()); this.setting("conversation-context", randomUUID()); this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES); this.setting("correction", false);
+      this.setting("device", randomUUID()); this.setting("conversation-context", randomUUID()); this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES); this.setting("correction", false); this.setting("evidence-revision", 0);
     });
     if (version === 1) this.transaction(() => {
       this.sql.exec("CREATE TABLE workflow_stage (submission_id TEXT NOT NULL REFERENCES submission(id), stage TEXT NOT NULL, attempt INTEGER NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (submission_id, stage)); PRAGMA user_version=2;");
       this.sql.prepare("INSERT OR IGNORE INTO settings(key,body) VALUES (?,?)").run("conversation-context", JSON.stringify(randomUUID()));
     });
-    if (version <= 2) this.transaction(() => { this.sql.exec("CREATE TABLE IF NOT EXISTS workflow_run (id TEXT PRIMARY KEY, kind TEXT NOT NULL, context_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL); PRAGMA user_version=3;"); });
-    if (version <= 3) this.transaction(() => { this.sql.exec("CREATE TABLE IF NOT EXISTS project (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS conversation (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project(id), title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS conversation_project ON conversation(project_id, updated_at DESC); PRAGMA user_version=4;"); this.ensureWorkspace(); });
+    if (version > 0 && version <= 2) this.transaction(() => { this.sql.exec("CREATE TABLE IF NOT EXISTS workflow_run (id TEXT PRIMARY KEY, kind TEXT NOT NULL, context_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL); PRAGMA user_version=3;"); });
+    if (version > 0 && version <= 3) this.transaction(() => { this.sql.exec("CREATE TABLE IF NOT EXISTS project (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS conversation (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project(id), title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS conversation_project ON conversation(project_id, updated_at DESC); PRAGMA user_version=4;"); this.ensureWorkspace(); });
+    if (version > 0 && version <= 4) this.transaction(() => {
+      this.sql.exec(`
+        CREATE TABLE conversation_v5 (id TEXT PRIMARY KEY, project_id TEXT REFERENCES project(id) ON DELETE SET NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
+        INSERT INTO conversation_v5 SELECT id,project_id,title,created_at,updated_at,archived FROM conversation;
+        DROP TABLE conversation;
+        ALTER TABLE conversation_v5 RENAME TO conversation;
+        CREATE INDEX conversation_project ON conversation(project_id, updated_at DESC);
+        ALTER TABLE conversation_turn ADD COLUMN conversation_id TEXT NOT NULL DEFAULT '';
+        UPDATE conversation_turn SET conversation_id=json_extract(body,'$.conversationId');
+        CREATE INDEX turn_conversation ON conversation_turn(conversation_id);
+        ALTER TABLE submission ADD COLUMN conversation_id TEXT NOT NULL DEFAULT '';
+        UPDATE submission SET conversation_id=json_extract(body,'$.turn.conversationId');
+        CREATE INDEX submission_conversation ON submission(conversation_id);
+        ALTER TABLE evidence_event ADD COLUMN conversation_id TEXT NOT NULL DEFAULT '';
+        UPDATE evidence_event SET conversation_id=json_extract(body,'$.conversationId');
+        ALTER TABLE evidence_event ADD COLUMN state_revision INTEGER NOT NULL DEFAULT 0;
+        UPDATE evidence_event SET state_revision=ordinal;
+        CREATE INDEX evidence_conversation ON evidence_event(conversation_id);
+        PRAGMA user_version=5;
+      `);
+      const maxRevision = Number(this.sql.prepare("SELECT COALESCE(MAX(ordinal),0) AS n FROM evidence_event").get()!.n);
+      this.setting("evidence-revision", maxRevision);
+    });
     this.ensureWorkspace();
   }
   close() { this.sql.close(); }
@@ -103,12 +130,33 @@ export class LearnerStore {
       ...raw,
       contractVersion: DEFAULT_RESPONSE_PREFERENCES.contractVersion,
       complexityPolicyVersion: DEFAULT_RESPONSE_PREFERENCES.complexityPolicyVersion,
+      maxUnfamiliarRatio: typeof raw.maxUnfamiliarRatio === "number" && Number.isFinite(raw.maxUnfamiliarRatio)
+        ? Math.max(PREFERENCE_BOUNDS.minRatio, Math.min(PREFERENCE_BOUNDS.maxRatio, raw.maxUnfamiliarRatio))
+        : DEFAULT_RESPONSE_PREFERENCES.maxUnfamiliarRatio,
       orchestrationMode: raw.orchestrationMode === "stepwise" ? "stepwise" : "synthesis",
       starterSetVersion: raw.startingLevel ? STARTER_SET.version : null,
     };
     return migrated;
   }
   correctionMode(): boolean { return this.readSetting("correction"); }
+  appSettings(): PersistedAppSettings | null {
+    const row = this.sql.prepare("SELECT body FROM settings WHERE key=?").get("app-settings");
+    return row ? JSON.parse(String(row.body)) as PersistedAppSettings : null;
+  }
+  saveAppSettings(value: PersistedAppSettings): PersistedAppSettings {
+    const provider = value.provider.trim();
+    const model = value.model.trim();
+    const apiKey = value.apiKey.trim();
+    const baseUrl = value.baseUrl.trim().replace(/\/+$/, "");
+    if (!provider || provider.length > 100 || model.length > 300 || apiKey.length > 10_000 || baseUrl.length > 2_000 || (value.language !== "zh" && value.language !== "en")) throw new StoreError("Invalid application settings.");
+    try {
+      const url = new URL(baseUrl);
+      if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") throw new Error();
+    } catch { throw new StoreError("Base URL must use HTTPS, or localhost for a local provider."); }
+    const settings = { provider, model, apiKey, baseUrl, language: value.language } satisfies PersistedAppSettings;
+    this.setting("app-settings", settings);
+    return settings;
+  }
   savePreferences(patch: Record<string, unknown>): ResponsePreferences {
     const allowed = ["maxUnfamiliarRatio", "maxNewExpressions", "allowChineseSupport", "startingLevel", "orchestrationMode", "correctionMode"];
     if (!Object.keys(patch).length || Object.keys(patch).some(k => !allowed.includes(k))) throw new StoreError("Unsupported preference field.");
@@ -132,15 +180,77 @@ export class LearnerStore {
   }
   projects() { return this.sql.prepare("SELECT id,name,created_at AS createdAt,updated_at AS updatedAt FROM project WHERE archived=0 ORDER BY updated_at DESC").all(); }
   conversations(projectId?: string) { const sql = projectId ? "SELECT id,project_id AS projectId,title,created_at AS createdAt,updated_at AS updatedAt FROM conversation WHERE project_id=? AND archived=0 ORDER BY updated_at DESC" : "SELECT id,project_id AS projectId,title,created_at AS createdAt,updated_at AS updatedAt FROM conversation WHERE archived=0 ORDER BY updated_at DESC"; return this.sql.prepare(sql).all(...(projectId ? [projectId] : [])); }
+  archivedConversations() { return this.sql.prepare("SELECT id,project_id AS projectId,title,created_at AS createdAt,updated_at AS updatedAt FROM conversation WHERE archived=1 ORDER BY updated_at DESC").all(); }
   createProject(name = "My language") { const id = randomUUID(), now = new Date().toISOString(); this.sql.prepare("INSERT INTO project VALUES (?,?,?,?,0)").run(id, name.trim() || "My language", now, now); return this.projects().find((p: any) => p.id === id); }
-  createConversation(projectId: string, title = "New conversation") { if (!this.sql.prepare("SELECT id FROM project WHERE id=? AND archived=0").get(projectId)) throw new StoreError("Project not found.", 404); const id = randomUUID(), now = new Date().toISOString(); this.sql.prepare("INSERT INTO conversation VALUES (?,?,?,?,0)").run(id, projectId, title.trim() || "New conversation", now, now); return this.conversations(projectId).find((c: any) => c.id === id); }
+  createConversation(projectId: string | null = null, title = "New conversation") { if (projectId && !this.sql.prepare("SELECT id FROM project WHERE id=? AND archived=0").get(projectId)) throw new StoreError("Project not found.", 404); const id = randomUUID(), now = new Date().toISOString(); this.sql.prepare("INSERT INTO conversation(id,project_id,title,created_at,updated_at,archived) VALUES (?,?,?,?,?,0)").run(id, projectId, title.trim() || "New conversation", now, now); return this.conversations().find((c: any) => c.id === id); }
   renameProject(id: string, name: string) { this.sql.prepare("UPDATE project SET name=?,updated_at=? WHERE id=? AND archived=0").run(name.trim() || "My language", new Date().toISOString(), id); return this.projects().find((p: any) => p.id === id) ?? null; }
   renameConversation(id: string, title: string) { this.sql.prepare("UPDATE conversation SET title=?,updated_at=? WHERE id=? AND archived=0").run(title.trim() || "New conversation", new Date().toISOString(), id); return this.conversations().find((c: any) => c.id === id) ?? null; }
-  archiveProject(id: string) { this.sql.prepare("UPDATE project SET archived=1 WHERE id=?").run(id); this.sql.prepare("UPDATE conversation SET archived=1 WHERE project_id=?").run(id); }
-  archiveConversation(id: string) { this.sql.prepare("UPDATE conversation SET archived=1 WHERE id=?").run(id); }
-  private ensureWorkspace() { if (Number(this.sql.prepare("SELECT COUNT(*) AS n FROM project").get()!.n) > 0) return; const pid = randomUUID(), cid = "local-conversation", now = new Date().toISOString(); this.sql.prepare("INSERT INTO project VALUES (?,?,?,?,0)").run(pid, "My language", now, now); this.sql.prepare("INSERT INTO conversation(id,project_id,title,created_at,updated_at,archived) VALUES (?,?,?,?,?,0)").run(cid, pid, "Conversation", now, now); }
-  defaultConversationId() { return "local-conversation"; }
-  private insertTurn(turn: ConversationTurn) { this.sql.prepare("INSERT INTO conversation_turn(sequence,id,body) VALUES (?,?,?)").run(turn.sequence, turn.id, JSON.stringify(turn)); }
+  moveConversation(id: string, projectId: string | null) {
+    if (projectId && !this.sql.prepare("SELECT id FROM project WHERE id=? AND archived=0").get(projectId)) throw new StoreError("Project not found.", 404);
+    const now = new Date().toISOString();
+    const result = this.transaction(() => {
+      const changed = this.sql.prepare("UPDATE conversation SET project_id=?,updated_at=? WHERE id=? AND archived=0").run(projectId, now, id);
+      if (!changed.changes) throw new StoreError("Conversation not found.", 404);
+      if (projectId) this.sql.prepare("UPDATE project SET updated_at=? WHERE id=?").run(now, projectId);
+      return this.conversations().find((conversation: any) => conversation.id === id) ?? null;
+    });
+    return result;
+  }
+  dissolveProject(id: string) { this.transaction(() => { const result = this.sql.prepare("UPDATE project SET archived=1,updated_at=? WHERE id=? AND archived=0").run(new Date().toISOString(), id); if (!result.changes) throw new StoreError("Project not found.", 404); this.sql.prepare("UPDATE conversation SET project_id=NULL,updated_at=? WHERE project_id=?").run(new Date().toISOString(), id); }); }
+  archiveConversation(id: string) {
+    const result = this.sql.prepare("UPDATE conversation SET archived=1,updated_at=? WHERE id=? AND archived=0").run(new Date().toISOString(), id);
+    if (!result.changes) throw new StoreError("Conversation not found.", 404);
+    this.ensureWorkspace();
+  }
+  restoreConversation(id: string) { const result = this.sql.prepare("UPDATE conversation SET archived=0,updated_at=? WHERE id=? AND archived=1").run(new Date().toISOString(), id); if (!result.changes) throw new StoreError("Archived conversation not found.", 404); return this.conversations().find((conversation: any) => conversation.id === id) ?? null; }
+  deleteConversation(id: string) {
+    return this.transaction(() => {
+      if (!this.sql.prepare("SELECT id FROM conversation WHERE id=?").get(id)) throw new StoreError("Conversation not found.", 404);
+      if (this.sql.prepare("SELECT id FROM submission WHERE conversation_id=? AND finished=0 LIMIT 1").get(id)) throw new StoreError("Wait for the current response before deleting this conversation.", 409);
+      const affectedItems = this.sql.prepare("SELECT DISTINCT item_id AS itemId FROM evidence_event WHERE conversation_id=?").all(id).map(row => String(row.itemId));
+      const evidenceCount = Number(this.sql.prepare("SELECT COUNT(*) AS n FROM evidence_event WHERE conversation_id=?").get(id)!.n);
+      this.sql.prepare("DELETE FROM reply_analysis WHERE assistant_turn_id IN (SELECT id FROM conversation_turn WHERE conversation_id=?)").run(id);
+      this.sql.prepare("DELETE FROM observation_decision WHERE submission_id IN (SELECT id FROM submission WHERE conversation_id=?)").run(id);
+      this.sql.prepare("DELETE FROM workflow_stage WHERE submission_id IN (SELECT id FROM submission WHERE conversation_id=?)").run(id);
+      this.sql.prepare("DELETE FROM evidence_event WHERE conversation_id=?").run(id);
+      this.sql.prepare("DELETE FROM submission WHERE conversation_id=?").run(id);
+      this.sql.prepare("DELETE FROM conversation_turn WHERE conversation_id=?").run(id);
+      this.sql.prepare("DELETE FROM conversation WHERE id=?").run(id);
+      if (evidenceCount) {
+        const revision = String(Number(this.revision()) + 1);
+        this.setting("evidence-revision", Number(revision));
+        for (const itemId of affectedItems) {
+          const state = deriveItemState(itemId as SenseId, this.evidence(revision, itemId as SenseId));
+          if (state) this.sql.prepare("INSERT INTO learner_item_state VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET revision=excluded.revision,body=excluded.body").run(itemId, revision, JSON.stringify(state));
+          else this.sql.prepare("DELETE FROM learner_item_state WHERE item_id=?").run(itemId);
+        }
+      }
+      this.ensureWorkspace(false);
+      return { deletedEvidence: evidenceCount };
+    });
+  }
+  private ensureWorkspace(useStableLocalId = true) {
+    let project = this.sql.prepare("SELECT id FROM project WHERE archived=0 ORDER BY updated_at DESC LIMIT 1").get() as { id?: string } | undefined;
+    const projectCount = Number(this.sql.prepare("SELECT COUNT(*) AS n FROM project").get()!.n);
+    if (!project?.id && projectCount === 0) {
+      const id = randomUUID(), now = new Date().toISOString();
+      this.sql.prepare("INSERT INTO project VALUES (?,?,?,?,0)").run(id, "My language", now, now);
+      project = { id };
+    }
+    const conversation = this.sql.prepare("SELECT id FROM conversation WHERE archived=0 ORDER BY updated_at DESC LIMIT 1").get() as { id?: string } | undefined;
+    if (!conversation?.id) {
+      const localIdAvailable = !this.sql.prepare("SELECT id FROM conversation WHERE id=?").get("local-conversation");
+      const id = useStableLocalId && localIdAvailable ? "local-conversation" : randomUUID();
+      const projectId = project?.id ? String(project.id) : null;
+      const now = new Date().toISOString();
+      this.sql.prepare("INSERT INTO conversation(id,project_id,title,created_at,updated_at,archived) VALUES (?,?,?,?,?,0)").run(id, projectId, "Conversation", now, now);
+    }
+  }
+  defaultConversationId() {
+    this.ensureWorkspace();
+    return String(this.sql.prepare("SELECT id FROM conversation WHERE archived=0 ORDER BY updated_at DESC LIMIT 1").get()!.id);
+  }
+  private insertTurn(turn: ConversationTurn) { this.sql.prepare("INSERT INTO conversation_turn(sequence,id,conversation_id,body) VALUES (?,?,?,?)").run(turn.sequence, turn.id, turn.conversationId, JSON.stringify(turn)); }
   private nextSequence(): number { return Number(this.sql.prepare("SELECT COALESCE(MAX(sequence),0)+1 AS n FROM conversation_turn").get()!.n); }
   private upsertStage(id: string, stage: WorkflowStage, status: WorkflowStageStatus, body: unknown = null) {
     const previous = this.sql.prepare("SELECT attempt FROM workflow_stage WHERE submission_id=? AND stage=?").get(id, stage) as { attempt?: number } | undefined;
@@ -194,7 +304,7 @@ export class LearnerStore {
       const snapshotRevision = this.revision();
       const submission: Submission = { id, turn, preferences: this.preferences(), evidenceDone: false, stateRevision: snapshotRevision, snapshotRevision, reply: null };
       this.insertTurn(turn);
-      this.sql.prepare("INSERT INTO submission(id,body) VALUES (?,?)").run(id, JSON.stringify(submission));
+      this.sql.prepare("INSERT INTO submission(id,conversation_id,body) VALUES (?,?,?)").run(id, conversationId, JSON.stringify(submission));
       this.upsertStage(id, "captured", "accepted", { turnId: turn.id, preferences: submission.preferences });
       this.upsertStage(id, "snapshot_pinned", "accepted", { stateRevision: snapshotRevision, profileVersion: submission.preferences.profileVersion });
       return submission;
@@ -210,14 +320,20 @@ export class LearnerStore {
   private checkOwner(id: string, owner: string) {
     if (!this.sql.prepare("SELECT id FROM submission WHERE id=? AND owner=? AND lease_until>?").get(id, owner, Date.now())) throw new StoreError("Submission lease expired. Retry the saved message.", 409);
   }
-  revision(): string { return String(this.sql.prepare("SELECT COALESCE(MAX(ordinal),0) AS n FROM evidence_event").get()!.n); }
+  revision(): string { return String(this.readSetting<number>("evidence-revision")); }
   evidence(revision = this.revision(), itemId?: SenseId): EvidenceEvent[] {
     if (typeof revision !== "string" || !/^\d+$/.test(revision) || !Number.isSafeInteger(Number(revision)) || Number(revision) > Number(this.revision())) throw new StoreError("Invalid state revision.");
-    return this.sql.prepare(`SELECT body FROM evidence_event WHERE ordinal<=?${itemId ? " AND item_id=?" : ""} ORDER BY ordinal`).all(...(itemId ? [Number(revision), itemId] : [Number(revision)])).map(r => JSON.parse(String(r.body)));
+    return this.sql.prepare(`SELECT body FROM evidence_event WHERE state_revision<=?${itemId ? " AND item_id=?" : ""} ORDER BY ordinal`).all(...(itemId ? [Number(revision), itemId] : [Number(revision)])).map(r => JSON.parse(String(r.body)));
   }
   private append(events: readonly EvidenceEvent[]) {
-    for (const e of events) this.sql.prepare("INSERT OR IGNORE INTO evidence_event(id,item_id,turn_id,body) VALUES (?,?,?,?)").run(e.id, e.itemId, e.turnId, JSON.stringify(e));
-    for (const id of new Set(events.map(e => e.itemId))) {
+    const revision = Number(this.revision()) + 1;
+    const inserted: EvidenceEvent[] = [];
+    for (const e of events) {
+      const result = this.sql.prepare("INSERT OR IGNORE INTO evidence_event(id,item_id,turn_id,conversation_id,state_revision,body) VALUES (?,?,?,?,?,?)").run(e.id, e.itemId, e.turnId, e.conversationId, revision, JSON.stringify(e));
+      if (result.changes) inserted.push(e);
+    }
+    if (inserted.length) this.setting("evidence-revision", revision);
+    for (const id of new Set(inserted.map(e => e.itemId))) {
       const state = deriveItemState(id, this.evidence(this.revision(), id));
       this.sql.prepare("INSERT INTO learner_item_state VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET revision=excluded.revision,body=excluded.body").run(id, this.revision(), JSON.stringify(state));
     }

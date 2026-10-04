@@ -14,12 +14,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const config = readLlmConfig();
+  const store = learnerStore();
+  const config = readLlmConfig(process.env, store.appSettings() ?? undefined);
   if (!config.configured) return Response.json({ error: `Set ${config.missing.join(", ")} in .env to enable the model.` }, { status: 503 });
   let body: unknown;
   try { body = await request.json(); } catch { return Response.json({ error: "Request body must be valid JSON." }, { status: 400 }); }
   try {
-    const result = await runScenario(body as ScenarioRequest, { config: config.config, graph: lexicalGraph, store: learnerStore() });
+    const result = await runScenario(body as ScenarioRequest, { config: config.config, graph: lexicalGraph, store });
     return Response.json(result);
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Scenario workflow failed." }, { status: 400 }); }
 }

@@ -6,7 +6,8 @@ import { sendLearningTurn } from "../../../../lib/learning-conversation.ts";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const config = readLlmConfig();
+  const store = learnerStore();
+  const config = readLlmConfig(process.env, store.appSettings() ?? undefined);
   if (!config.configured) {
     return Response.json({
       error: `Set ${config.missing.join(", ")} in .env to enable the model.`,
@@ -29,9 +30,9 @@ export async function POST(request: Request) {
       correctionMode: body.correctionMode,
       id: body.submissionId,
       conversationId: body.conversationId,
-      store: learnerStore(),
+      store,
     });
-    return Response.json({ assistantMessage: { ...reply, learnerTurn: learnerStore().getSubmission(body.submissionId)!.turn } });
+    return Response.json({ assistantMessage: { ...reply, learnerTurn: store.getSubmission(body.submissionId)!.turn } });
   } catch (error) {
     if (error instanceof StoreError) return Response.json({ error: error.message }, { status: error.status });
     const message = error instanceof Error ? error.message : "The model request failed.";

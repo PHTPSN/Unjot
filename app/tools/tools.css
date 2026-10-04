@@ -1,27 +1,81 @@
-.tools-shell { min-height: 100vh; padding: 48px clamp(20px, 5vw, 88px) 80px; background: #f7f8f6; color: #18211d; }
-.tools-header { max-width: 1100px; margin: 0 auto 34px; }
-.tools-back { color: #385b50; text-decoration: none; font-size: 14px; }
-.eyebrow { margin: 34px 0 8px; color: #b26136; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.tools-header h1 { margin: 0; font-size: clamp(30px, 4vw, 52px); line-height: 1.05; letter-spacing: 0; }
-.tools-header p:not(.eyebrow) { max-width: 660px; color: #5e6c65; line-height: 1.6; }
-.tools-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.tool-panel { background: #fff; border: 1px solid #dce4df; border-radius: 8px; padding: 24px; box-shadow: 0 8px 24px #17251d0d; }
-.tool-title { display: flex; align-items: center; gap: 9px; color: #386255; }
-.tool-title h2 { margin: 0; color: #18211d; font-size: 22px; }
-.tool-panel > p { color: #68766f; line-height: 1.5; min-height: 48px; }
-.tool-panel form { display: grid; gap: 14px; }
-.tool-panel label { display: grid; gap: 6px; color: #35453d; font-size: 13px; font-weight: 650; }
-.tool-panel label span { color: #87938d; font-weight: 400; }
-.tool-panel input, .tool-panel textarea { width: 100%; box-sizing: border-box; border: 1px solid #ccd8d1; border-radius: 6px; background: #fbfcfb; color: #18211d; padding: 10px 11px; font: inherit; line-height: 1.4; resize: vertical; }
-.tool-panel input:focus, .tool-panel textarea:focus { outline: 2px solid #a8cfc0; border-color: #5b9a82; }
-.tool-panel button { justify-self: start; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; background: #386255; color: #fff; padding: 10px 15px; font-weight: 700; cursor: pointer; }
-.tool-panel button:disabled { opacity: .5; cursor: wait; }
-.workflow-result { margin-top: 24px; border-top: 1px solid #e1e8e3; padding-top: 18px; line-height: 1.55; }
-.workflow-result h3 { margin: 4px 0 10px; font-size: 18px; }
-.result-label { color: #b26136; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.tools-shell {
+  width: min(1180px, calc(100% - 40px));
+  min-height: calc(100vh - 40px);
+  margin: 20px auto;
+  padding: 42px clamp(24px, 5vw, 64px) 72px;
+  overflow: hidden;
+  border: 1px solid rgba(236, 216, 225, .94);
+  border-radius: 28px;
+  background: rgba(255, 251, 252, .93);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+.tools-header { max-width: 1100px; margin: 0 auto 34px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+.tools-back { color: var(--pink-deep); text-decoration: none; font-size: 14px; }
+.tools-shell .eyebrow { margin: 34px 0 8px; color: var(--pink-deep); font-size: 11px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+.tools-header h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(34px, 5vw, 52px);
+  font-weight: 500;
+  line-height: 1.04;
+  letter-spacing: -.045em;
+}
+.tools-header p:not(.eyebrow) { max-width: 660px; color: var(--muted); line-height: 1.65; }
+.tools-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.tool-panel {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .74);
+  box-shadow: var(--shadow-soft);
+}
+.tool-title { display: flex; align-items: center; gap: 10px; color: var(--pink); }
+.tool-title h2 { margin: 0; color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 500; letter-spacing: -.025em; }
+.tool-panel > p { min-height: 48px; color: var(--muted); line-height: 1.55; }
+.tool-panel form { display: grid; gap: 15px; }
+.tool-panel label { display: grid; gap: 7px; color: var(--ink-soft); font-size: 13px; font-weight: 650; }
+.tool-panel label span { color: var(--quiet); font-weight: 400; }
+.tool-panel input, .tool-panel textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255, 252, 253, .9);
+  color: var(--ink);
+  line-height: 1.45;
+  resize: vertical;
+}
+.tool-panel input:focus, .tool-panel textarea:focus { outline: 3px solid rgba(199, 45, 114, .1); border-color: var(--line-strong); }
+.tool-panel button {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #d63d82, #94134f);
+  color: #fff;
+  box-shadow: 0 9px 20px rgba(143, 18, 77, .2);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+.tool-panel button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(143, 18, 77, .25); }
+.tool-panel button:disabled { opacity: .5; box-shadow: none; cursor: wait; }
+.workflow-result { margin-top: 25px; padding: 19px; border: 1px solid var(--line); border-radius: 16px; background: var(--pink-pale); line-height: 1.55; }
+.workflow-result h3 { margin: 4px 0 10px; color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-size: 20px; font-weight: 500; }
+.result-label { color: var(--pink-deep); font-size: 10px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
 .workflow-result dl { display: grid; grid-template-columns: max-content 1fr; gap: 5px 14px; font-size: 13px; }
-.workflow-result dt { color: #718078; }
+.workflow-result dt { color: var(--muted); }
 .workflow-result dd { margin: 0; }
 .workflow-result ul { padding-left: 20px; }
-.tools-error { max-width: 1100px; margin: 0 auto 20px; padding: 12px 14px; border: 1px solid #e5b3a5; border-radius: 6px; background: #fff5f1; color: #8c3524; }
-@media (max-width: 780px) { .tools-shell { padding: 28px 16px 56px; } .tools-grid { grid-template-columns: 1fr; } .tool-panel > p { min-height: 0; } }
+.tools-error { max-width: 1100px; margin: 0 auto 20px; padding: 12px 14px; border: 1px solid #efcedc; border-radius: 14px; background: #fff5f8; color: #8b345c; }
+
+@media (max-width: 780px) {
+  .tools-shell { width: 100%; min-height: 100dvh; margin: 0; padding: 28px 16px 56px; border: 0; border-radius: 0; }
+  .tools-grid { grid-template-columns: 1fr; }
+  .tool-panel > p { min-height: 0; }
+  .tool-panel { padding: 20px; }
+}

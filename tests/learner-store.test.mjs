@@ -23,13 +23,14 @@ test("preferences survive reopening and each submission captures the effective p
     const turn = store.begin("submission-1", "We can figure out the problem.", false);
     assert.equal(turn.preferences.maxUnfamiliarRatio, 0);
     assert.equal(turn.preferences.startingLevel, "A1");
-    store.savePreferences({ maxUnfamiliarRatio: .5, correctionMode: true });
+    store.savePreferences({ maxUnfamiliarRatio: .3, correctionMode: true });
     store.close(); store = new LearnerStore(path);
-    assert.equal(store.preferences().maxUnfamiliarRatio, .5);
+    assert.equal(store.preferences().maxUnfamiliarRatio, .3);
     assert.equal(store.correctionMode(), true);
     assert.deepEqual(store.begin("submission-1", turn.turn.text, false).preferences, next);
     assert.equal(store.turns().length, 1);
     assert.throws(() => store.savePreferences({ mastery: 100 }), StoreError);
+    assert.throws(() => store.savePreferences({ maxUnfamiliarRatio: .31 }), StoreError);
     assert.throws(() => store.savePreferences({ maxUnfamiliarRatio: 2 }), StoreError);
     assert.equal(store.revision(), "0");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }

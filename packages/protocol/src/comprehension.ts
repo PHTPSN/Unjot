@@ -43,10 +43,10 @@ export const DEFAULT_RESPONSE_PREFERENCES: Readonly<ResponsePreferences> = Objec
   startingLevel: null, starterSetVersion: null,
   complexityPolicyVersion: COMPLEXITY_POLICY.version, comprehensionPolicyVersion: COMPREHENSION_POLICY_VERSION,
 });
-export const PREFERENCE_BOUNDS = { minRatio: 0, maxRatio: 1 } as const;
+export const PREFERENCE_BOUNDS = { minRatio: 0, maxRatio: 0.3 } as const;
 export function validResponsePreferences(value: ResponsePreferences): boolean {
   return value.contractVersion === RESPONSE_CONTRACT_VERSION && typeof value.profileVersion === "string" && value.profileVersion.length > 0 &&
-    Number.isFinite(value.maxUnfamiliarRatio) && value.maxUnfamiliarRatio >= 0 && value.maxUnfamiliarRatio <= 1 &&
+    Number.isFinite(value.maxUnfamiliarRatio) && value.maxUnfamiliarRatio >= PREFERENCE_BOUNDS.minRatio && value.maxUnfamiliarRatio <= PREFERENCE_BOUNDS.maxRatio &&
     (value.maxNewExpressions === undefined || (Number.isInteger(value.maxNewExpressions) && value.maxNewExpressions >= 0 && value.maxNewExpressions <= 20)) &&
     value.supportLanguage === "zh" && typeof value.allowChineseSupport === "boolean" &&
     (value.orchestrationMode === "synthesis" || value.orchestrationMode === "stepwise") &&
