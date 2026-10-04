@@ -1,5 +1,3 @@
-01 · AI 软件应用 - Unjot：告别摘抄学语言 - LDDL
-
 # Unjot
 
 Unjot is a language-learning system built around a simple idea:
