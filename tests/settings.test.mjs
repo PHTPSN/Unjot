@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { LearnerStore } from "../lib/learner-store.ts";
 import { readLlmConfig, testLlmConnection } from "../lib/llm-config.ts";
+import { DEFAULT_RESPONSE_PREFERENCES } from "../packages/protocol/src/comprehension.ts";
 
 test("application settings persist locally and override environment defaults", async t => {
   const directory = await mkdtemp(join(tmpdir(), "unjot-settings-"));
@@ -43,6 +44,71 @@ test("application settings persist locally and override environment defaults", a
   assert.equal(resolved.config.model, "saved-model");
   assert.equal(resolved.config.apiKey, "saved-secret");
   assert.equal(resolved.config.baseUrl, "http://127.0.0.1:1234/v1");
+});
+
+test("clearing saved application settings restores environment configuration", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "unjot-settings-reset-"));
+  const path = join(directory, "learner.sqlite");
+  t.after(async () => { await rm(directory, { recursive: true, force: true }); });
+
+  const store = new LearnerStore(path);
+  store.saveAppSettings({
+    provider: "saved-provider",
+    model: "saved-model",
+    apiKey: "saved-secret",
+    baseUrl: "https://saved.example/v1",
+    language: "zh",
+  });
+  store.clearAppSettings();
+
+  const saved = store.appSettings();
+  const language = store.interfaceLanguage();
+  const resolved = readLlmConfig({
+    LLM_PROVIDER: "environment-provider",
+    LLM_MODEL: "environment-model",
+    LLM_API_KEY: "environment-secret",
+    LLM_BASE_URL: "https://environment.example/v1",
+  }, saved ?? undefined);
+  store.close();
+
+  assert.equal(saved, null);
+  assert.equal(language, "zh");
+  assert.equal(resolved.configured, true);
+  assert.equal(resolved.config.provider, "environment-provider");
+  assert.equal(resolved.config.model, "environment-model");
+  assert.equal(resolved.config.apiKey, "environment-secret");
+  assert.equal(resolved.config.baseUrl, "https://environment.example/v1");
+});
+
+test("clearing user data resets the local store while preserving a usable workspace", () => {
+  const store = new LearnerStore(":memory:");
+  const originalDeviceId = store.deviceId;
+  store.createProject("Private project");
+  store.createConversation(null, "Private conversation");
+  store.saveAppSettings({
+    provider: "saved-provider",
+    model: "saved-model",
+    apiKey: "saved-secret",
+    baseUrl: "https://saved.example/v1",
+    language: "zh",
+  });
+  store.savePreferences({ maxUnfamiliarRatio: 0.1, startingLevel: "B2" });
+
+  store.clearUserData();
+
+  assert.notEqual(store.deviceId, originalDeviceId);
+  assert.equal(store.appSettings(), null);
+  assert.equal(store.interfaceLanguage(), null);
+  assert.equal(store.projects().length, 1);
+  assert.equal(store.conversations().length, 1);
+  assert.equal(store.conversations()[0].title, "Conversation");
+  assert.equal(store.turns().length, 0);
+  assert.equal(store.evidence().length, 0);
+  assert.equal(store.states().length, 0);
+  assert.equal(store.workflowRuns().length, 0);
+  assert.equal(store.revision(), "0");
+  assert.deepEqual(store.preferences(), DEFAULT_RESPONSE_PREFERENCES);
+  store.close();
 });
 
 test("application settings reject unsafe remote HTTP endpoints", () => {

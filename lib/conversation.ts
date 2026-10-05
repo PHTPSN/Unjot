@@ -21,6 +21,7 @@ export type SavedConversation = {
   turns: readonly ConversationTurn[];
   correctionMode: boolean;
   lookupResultsByTurnId: ConversationState["lookupResultsByTurnId"];
+  processing?: { id: string; turn: ConversationTurn } | null;
   unfinished: { id: string; turn: ConversationTurn } | null;
 };
 
@@ -75,7 +76,6 @@ export class ConversationController {
   }
 
   restore(saved: SavedConversation): void {
-    if (this.state.pending) return;
     this.conversationId = saved.conversationId ?? this.conversationId;
     this.retrySubmission = saved.unfinished ? {
       submissionId: saved.unfinished.id, turn: saved.unfinished.turn,
@@ -84,6 +84,7 @@ export class ConversationController {
     } : null;
     this.update({ turns: saved.turns, correctionMode: saved.correctionMode,
       lookupResultsByTurnId: saved.lookupResultsByTurnId,
+      pending: Boolean(saved.processing),
       error: saved.unfinished ? "Your saved message needs a reply. Retry when ready." : null });
   }
 

@@ -27,13 +27,25 @@ export default function ConversationPage() {
 
   useEffect(() => {
     let active = true;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
     const conversationId = new URLSearchParams(window.location.search).get("conversationId");
-    fetch(`/api/conversation${conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : ""}`).then(async response => {
-      if (!response.ok) throw new Error(text.loadError);
-      const saved = await response.json();
-      if (active) { controller.restore(saved); setLoaded(true); }
-    }).catch(e => { if (active) setLoadError(e.message); });
-    return () => { active = false; };
+    const url = `/api/conversation${conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : ""}`;
+    const load = async () => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(text.loadError);
+        const saved = await response.json();
+        if (!active) return;
+        controller.restore(saved);
+        setLoaded(true);
+        setLoadError("");
+        if (saved.processing) pollTimer = setTimeout(load, 1_000);
+      } catch (error) {
+        if (active) setLoadError(error instanceof Error ? error.message : text.loadError);
+      }
+    };
+    void load();
+    return () => { active = false; if (pollTimer) clearTimeout(pollTimer); };
   }, [controller, text.loadError]);
   useEffect(() => {
     void fetch("/api/status")

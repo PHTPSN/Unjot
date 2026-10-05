@@ -143,6 +143,15 @@ export class LearnerStore {
     const row = this.sql.prepare("SELECT body FROM settings WHERE key=?").get("app-settings");
     return row ? JSON.parse(String(row.body)) as PersistedAppSettings : null;
   }
+  interfaceLanguage(): "zh" | "en" | null {
+    const row = this.sql.prepare("SELECT body FROM settings WHERE key=?").get("interface-language");
+    if (!row) return this.appSettings()?.language ?? null;
+    const language = JSON.parse(String(row.body));
+    return language === "zh" || language === "en" ? language : null;
+  }
+  saveInterfaceLanguage(language: "zh" | "en"): void {
+    this.setting("interface-language", language);
+  }
   saveAppSettings(value: PersistedAppSettings): PersistedAppSettings {
     const provider = value.provider.trim();
     const model = value.model.trim();
@@ -155,7 +164,39 @@ export class LearnerStore {
     } catch { throw new StoreError("Base URL must use HTTPS, or localhost for a local provider."); }
     const settings = { provider, model, apiKey, baseUrl, language: value.language } satisfies PersistedAppSettings;
     this.setting("app-settings", settings);
+    this.saveInterfaceLanguage(settings.language);
     return settings;
+  }
+  clearAppSettings(): void {
+    const language = this.interfaceLanguage();
+    if (language) this.saveInterfaceLanguage(language);
+    this.sql.prepare("DELETE FROM settings WHERE key=?").run("app-settings");
+  }
+  clearUserData(): void {
+    this.transaction(() => {
+      const active = this.sql.prepare("SELECT id FROM submission WHERE finished=0 AND lease_until>? LIMIT 1").get(Date.now());
+      if (active) throw new StoreError("Wait for the current response before clearing user data.", 409);
+      this.sql.exec(`
+        DELETE FROM reply_analysis;
+        DELETE FROM observation_decision;
+        DELETE FROM workflow_stage;
+        DELETE FROM evidence_event;
+        DELETE FROM submission;
+        DELETE FROM conversation_turn;
+        DELETE FROM workflow_run;
+        DELETE FROM learner_item_state;
+        DELETE FROM conversation;
+        DELETE FROM project;
+        DELETE FROM settings;
+        DELETE FROM sqlite_sequence WHERE name IN ('conversation_turn', 'evidence_event');
+      `);
+      this.setting("device", randomUUID());
+      this.setting("conversation-context", randomUUID());
+      this.setting("preferences", DEFAULT_RESPONSE_PREFERENCES);
+      this.setting("correction", false);
+      this.setting("evidence-revision", 0);
+      this.ensureWorkspace();
+    });
   }
   savePreferences(patch: Record<string, unknown>): ResponsePreferences {
     const allowed = ["maxUnfamiliarRatio", "maxNewExpressions", "allowChineseSupport", "startingLevel", "orchestrationMode", "correctionMode"];
@@ -173,7 +214,13 @@ export class LearnerStore {
   turns(limit = 100): ConversationTurn[] {
     return this.sql.prepare("SELECT body FROM conversation_turn ORDER BY sequence DESC LIMIT ?").all(limit).reverse().map(r => JSON.parse(String(r.body)));
   }
-  conversationTurns(conversationId: string, limit = 100): ConversationTurn[] { return this.sql.prepare("SELECT body FROM conversation_turn ORDER BY sequence DESC LIMIT ?").all(limit * 3).map(r => JSON.parse(String(r.body))).filter((t: ConversationTurn) => t.conversationId === conversationId).slice(-limit); }
+  conversationTurns(conversationId: string, limit = 100): ConversationTurn[] {
+    return this.sql.prepare("SELECT body FROM conversation_turn ORDER BY sequence DESC LIMIT ?").all(limit * 3)
+      .map(r => JSON.parse(String(r.body)) as ConversationTurn)
+      .filter(turn => turn.conversationId === conversationId)
+      .slice(0, limit)
+      .reverse();
+  }
   async historyPage(limit = 100): Promise<ConversationTurn[]> {
     const rows = await this.orm.select().from(turnsTable).orderBy(desc(turnsTable.sequence)).limit(limit);
     return rows.reverse().map(row => JSON.parse(row.body));
@@ -298,7 +345,7 @@ export class LearnerStore {
         if (existing.turn.text !== original || existing.turn.correctionMode !== correctionMode) throw new StoreError("Submission ID already belongs to different input.", 409);
         return existing;
       }
-      if (this.sql.prepare("SELECT id FROM submission WHERE finished=0 LIMIT 1").get()) throw new StoreError("Retry the unfinished message before sending another.", 409);
+      if (this.sql.prepare("SELECT id FROM submission WHERE finished=0 AND conversation_id=? LIMIT 1").get(conversationId)) throw new StoreError("Retry the unfinished message before sending another.", 409);
       if (!this.sql.prepare("SELECT id FROM conversation WHERE id=? AND archived=0").get(conversationId)) throw new StoreError("Conversation not found.", 404);
       const turn: ConversationTurn = { id, conversationId, sequence: this.nextSequence(), role: "learner", contextId: this.contextId, text: original, occurredAt: new Date().toISOString(), suppliedItemIds: [], correctionMode, correction: null };
       const snapshotRevision = this.revision();
@@ -379,9 +426,18 @@ export class LearnerStore {
       s.reply = { ...reply, assistantTurn: savedAssistant, analysis: savedAnalysis }; this.putSubmission(s); return s.reply;
     });
   }
-  pending(): Submission | null {
-    const row = this.sql.prepare("SELECT body FROM submission WHERE finished=0 LIMIT 1").get();
-    return row ? JSON.parse(String(row.body)) : null;
+  pending(conversationId?: string): Submission | null {
+    return this.pendingStatus(conversationId)?.submission ?? null;
+  }
+  pendingStatus(conversationId?: string): { submission: Submission; processing: boolean } | null {
+    const row = conversationId
+      ? this.sql.prepare("SELECT body,owner,lease_until FROM submission WHERE finished=0 AND conversation_id=? LIMIT 1").get(conversationId)
+      : this.sql.prepare("SELECT body,owner,lease_until FROM submission WHERE finished=0 LIMIT 1").get();
+    if (!row) return null;
+    return {
+      submission: JSON.parse(String(row.body)),
+      processing: Boolean(row.owner) && Number(row.lease_until) > Date.now(),
+    };
   }
   inspect() {
     const events = this.evidence();
@@ -415,5 +471,12 @@ export class LearnerStore {
   }
 }
 
-const local = globalThis as typeof globalThis & { unjotLearnerStore?: LearnerStore };
-export function learnerStore(): LearnerStore { return local.unjotLearnerStore ??= new LearnerStore(); }
+const local = globalThis as typeof globalThis & { unjotLearnerStore?: unknown };
+export function learnerStore(): LearnerStore {
+  const current = local.unjotLearnerStore;
+  if (current instanceof LearnerStore) return current;
+  if (current && typeof current === "object" && "close" in current && typeof current.close === "function") current.close();
+  const next = new LearnerStore();
+  local.unjotLearnerStore = next;
+  return next;
+}

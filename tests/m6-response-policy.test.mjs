@@ -32,23 +32,46 @@ test("M6 budget counts repeated unfamiliar occurrences and excludes Chinese from
   assert.equal(complexityForText("中文回答。", []).passed, true);
 });
 
-test("M6 synthesis records its mode and falls back once when its structured output is malformed", async () => {
+test("M6 synthesis records its mode and repairs repeated malformed structured output", async () => {
   const personal = {
     preferences: DEFAULT_RESPONSE_PREFERENCES,
     get_corrected_learner_states: async () => ({ items: [] }),
     assess_comprehension: async request => request.units.map(unit => ({ assessment: "provisional", itemId: unit.itemId, evidenceIds: [], baseline: { startingLevel: "A1", starterSetVersion: "unjot-starter-v1", source: "Unjot editorial seed, 2026-10-03" }, span: unit.span, modality: "reading", reason: "seed", stateRevision: "0", policyVersion: "reading-v1" })),
   };
   let calls = 0;
+  const toolChoices = [];
   const reply = await createLearnerAwareReply({
     config: { provider: "test", model: "test", apiKey: "secret", baseUrl: "https://example.test/v1" }, graph, personal,
     text: "Please answer in Chinese.", correctionMode: false, history: [], submissionId: "s1", stateRevision: "0",
-    preferences: DEFAULT_RESPONSE_PREFERENCES, fetcher: async () => {
+    preferences: DEFAULT_RESPONSE_PREFERENCES, fetcher: async (_url, init) => {
       calls += 1;
-      const args = calls === 1 ? "not-json" : JSON.stringify({ text: "这里是答案。", correction: null, confidence: true, language: "chinese" });
+      toolChoices.push(JSON.parse(init.body).tool_choice);
+      const args = calls < 3 ? (calls === 1 ? "not-json" : JSON.stringify({ correction: null })) : JSON.stringify({ text: "这里是答案。", correction: null, confidence: true, language: "chinese" });
       return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", tool_calls: [{ id: String(calls), type: "function", function: { name: calls === 1 ? "synthesize_response" : "stepwise_response", arguments: args } }] } }] }));
     },
   });
   assert.equal(reply.analysis.orchestrationMode, "stepwise");
   assert.equal(reply.analysis.strategyVersion, "m6-response-v1");
-  assert.equal(calls, 2);
+  assert.equal(reply.analysis.generationAttempts, 3);
+  assert.equal(calls, 3);
+  assert.deepEqual(toolChoices, ["auto", "auto", "auto"]);
+});
+
+test("M6 accepts providers that return function arguments wrapped in message content", async () => {
+  const personal = {
+    preferences: DEFAULT_RESPONSE_PREFERENCES,
+    get_corrected_learner_states: async () => ({ items: [] }),
+    assess_comprehension: async request => request.units.map(unit => ({ assessment: "provisional", itemId: unit.itemId, evidenceIds: [], baseline: { startingLevel: "A1", starterSetVersion: "unjot-starter-v1", source: "Unjot editorial seed, 2026-10-03" }, span: unit.span, modality: "reading", reason: "seed", stateRevision: "0", policyVersion: "reading-v1" })),
+  };
+  const reply = await createLearnerAwareReply({
+    config: { provider: "test", model: "test", apiKey: "secret", baseUrl: "https://example.test/v1" }, graph, personal,
+    text: "Please answer in Chinese.", correctionMode: false, history: [], submissionId: "s2", stateRevision: "0",
+    preferences: DEFAULT_RESPONSE_PREFERENCES, fetcher: async () => new Response(JSON.stringify({ choices: [{ message: {
+      role: "assistant", tool_calls: [], content: JSON.stringify({ name: "synthesize_response", arguments: {
+        text: "这里是答案。", correction: null, confidence: true, language: "chinese",
+      } }),
+    } }] })),
+  });
+  assert.equal(reply.text, "这里是答案。");
+  assert.equal(reply.analysis.generationAttempts, 1);
 });

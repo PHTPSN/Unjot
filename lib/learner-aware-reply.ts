@@ -5,6 +5,7 @@ import type { AssistantReply } from "./chat-types.ts";
 import type { LlmConfig } from "./llm-config.ts";
 import type { PersonalReads } from "./personal-reads.ts";
 import { analyzeBlock, combinedBudget, languageDecision, segmentEnglishUnits } from "./response-policy.ts";
+import { parseStructuredOutput, StructuredOutputError } from "./structured-output.ts";
 
 const STRATEGY_VERSION = "m6-response-v1" as const;
 const MAX_DRAFT_CHARS = 4000;
@@ -30,8 +31,15 @@ export async function createLearnerAwareReply(options: {
   } catch (error) {
     if (mode !== "synthesis" || !(error instanceof Error) || !/uncertain synthesis|Invalid structured response draft|Invalid response draft text/.test(error.message)) throw error;
     mode = "stepwise"; usedFallback = true;
-    candidate = await generateCandidate({ ...options, plan: { ...plan, orchestrationMode: mode }, mode, instruction: "Answer with a short, accessible response. Preserve the requested meaning." });
-    generationAttempts = 1;
+    try {
+      candidate = await generateCandidate({ ...options, plan: { ...plan, orchestrationMode: mode }, mode, instruction: "Answer with a short, accessible response. Preserve the requested meaning." });
+      generationAttempts = 2;
+    } catch (retryError) {
+      if (!(retryError instanceof Error) || !/Invalid structured response draft|Invalid response draft text/.test(retryError.message)) throw retryError;
+      candidate = await generateCandidate({ ...options, plan: { ...plan, orchestrationMode: mode }, mode,
+        instruction: "Repair the response format. Return a non-empty text answer and a correction field; do not omit either field." });
+      generationAttempts = 3;
+    }
   }
 
   let checked = await checkCandidate(candidate, options, { ...plan, orchestrationMode: mode });
@@ -93,25 +101,25 @@ async function generateCandidate(options: Parameters<typeof createLearnerAwareRe
       { role: "user", content: options.text },
     ], tools: [{ type: "function", function: { name: options.mode === "synthesis" ? "synthesize_response" : "stepwise_response", description: "Return a checked candidate draft; no scores or state patches.", parameters: { type: "object", properties: {
       text: { type: "string", maxLength: MAX_DRAFT_CHARS }, correction: { type: ["string", "null"], maxLength: MAX_DRAFT_CHARS }, confidence: { type: "boolean" }, uncertain: { type: "boolean" }, language: { type: "string", enum: ["english", "mixed", "chinese"] },
-    }, required: ["text", "correction"], additionalProperties: false } } }], tool_choice: "required" }),
+    }, required: ["text", "correction"], additionalProperties: false } } }], tool_choice: "auto" }),
   });
   if (!response.ok) throw new Error(`Model provider returned HTTP ${response.status}.`);
-  const payload = await response.json() as { choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }> };
+  const payload = await response.json() as { choices?: Array<{ message?: { content?: unknown; reasoning?: unknown; tool_calls?: unknown } }> };
   const message = payload.choices?.[0]?.message;
-  const calls = Array.isArray(message?.tool_calls) ? message!.tool_calls as Array<{ function?: { name?: unknown; arguments?: unknown } }> : [];
-  const call = calls.find(item => typeof item.function?.arguments === "string");
-  let raw: unknown;
-  if (call) {
-    try { raw = JSON.parse(String(call.function!.arguments)); }
-    catch { throw new Error("Invalid structured response draft."); }
-  } else raw = message?.content;
-  if (typeof raw === "string") {
-    try { raw = JSON.parse(raw); } catch { raw = { text: raw, correction: null }; }
+  let parsed;
+  try {
+    parsed = parseStructuredOutput(message, {
+      functionNames: [options.mode === "synthesis" ? "synthesize_response" : "stepwise_response", "finish_response"],
+      maxChars: MAX_DRAFT_CHARS * 2,
+      plainTextField: "text",
+    });
+  } catch (error) {
+    if (error instanceof StructuredOutputError) throw new Error("Invalid structured response draft.");
+    throw error;
   }
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Invalid structured response draft.");
-  const value = raw as Record<string, unknown>;
+  const value = parsed.value;
   if (typeof value.text !== "string" || !value.text.trim() || value.text.length > MAX_DRAFT_CHARS) throw new Error("Invalid response draft text.");
-  return { text: value.text.trim(), correction: typeof value.correction === "string" && value.correction.trim() ? value.correction.trim() : null, confidence: value.confidence === false ? false : true, uncertain: value.uncertain === true, language: value.language === "chinese" || value.language === "mixed" ? value.language : "english", legacy: call?.function?.name === "finish_response" };
+  return { text: value.text.trim(), correction: typeof value.correction === "string" && value.correction.trim() ? value.correction.trim() : null, confidence: value.confidence === false ? false : true, uncertain: value.uncertain === true, language: value.language === "chinese" || value.language === "mixed" ? value.language : "english", legacy: parsed.functionName === "finish_response" };
 }
 
 async function checkCandidate(candidate: Candidate, options: Parameters<typeof createLearnerAwareReply>[0], plan: ResponsePlan) {

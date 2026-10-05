@@ -93,6 +93,30 @@ test("failed request retries the same captured submission without duplicating th
   assert.equal(controller.getSnapshot().error, null);
 });
 
+test("restored active processing polls into its completed assistant reply without offering retry", () => {
+  const controller = controllerFor(async () => ({ text: "unused", correction: null }));
+  const learner = {
+    id: "submission-1", conversationId: "conversation-1", sequence: 1, role: "learner",
+    contextId: "free-chat", text: "hello", occurredAt: "2026-10-03T08:00:00.000Z",
+    suppliedItemIds: [], correctionMode: false, correction: null,
+  };
+  controller.restore({
+    conversationId: "conversation-1", turns: [learner], correctionMode: false,
+    lookupResultsByTurnId: {}, processing: { id: learner.id, turn: learner }, unfinished: null,
+  });
+  assert.equal(controller.getSnapshot().pending, true);
+  assert.equal(controller.getSnapshot().error, null);
+
+  const assistant = { ...learner, id: "assistant-1", sequence: 2, role: "assistant", text: "hi" };
+  controller.restore({
+    conversationId: "conversation-1", turns: [learner, assistant], correctionMode: false,
+    lookupResultsByTurnId: {}, processing: null, unfinished: null,
+  });
+  assert.equal(controller.getSnapshot().pending, false);
+  assert.equal(controller.getSnapshot().error, null);
+  assert.deepEqual(controller.getSnapshot().turns, [learner, assistant]);
+});
+
 test("mock responses match only the specified examples", () => {
   const submission = (text, correctionMode = false) => ({
     turn: { text },

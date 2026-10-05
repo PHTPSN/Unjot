@@ -63,3 +63,40 @@ test("failure after accepted observations survives reopen and retry without dupl
     assert.equal(store.turns().length, 2);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("evidence retries with content JSON when a provider leaves forced tool arguments empty", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "unjot-structured-output-"));
+  const store = new LearnerStore(join(directory, "learner.sqlite"));
+  const proposeChoices = [];
+  let proposeCalls = 0;
+  let learnerTurnId = "";
+  const fetcher = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    const name = request.tools?.[0]?.function?.name;
+    if (name === "propose_observations") {
+      proposeChoices.push(request.tool_choice);
+      const { current } = JSON.parse(request.messages[1].content);
+      if (current.role === "assistant") return completion(name, { observations: [] });
+      learnerTurnId = current.id;
+      proposeCalls += 1;
+      const observations = [{ expression: "figure out", quote: "We can figure out the problem together.", start: 0, textSource: "text", behavior: "production", referenceTurnId: current.id }];
+      if (proposeCalls === 1) return new Response(JSON.stringify({ choices: [{ message: {
+        content: "", reasoning: JSON.stringify({ observations }),
+        tool_calls: [{ type: "function", function: { name, arguments: "" } }],
+      } }] }));
+      return new Response(JSON.stringify({ choices: [{ message: {
+        content: JSON.stringify({ name, arguments: { observations } }), tool_calls: [],
+      } }] }));
+    }
+    if (name === "judge_observations") return completion(name, { judgments: [{ observationIndex: 0, itemId: "sense:figure_out%2:31:00::", correctness: "correct", usage: "communicative", meaningClear: true, assistance: "independent", supportTurnId: learnerTurnId, rationale: "Correct problem-solving use." }] });
+    return completion("finish_response", { text: "What have you tried?", correction: null });
+  };
+  try {
+    await sendLearningTurn({ store, graph, config, id: "structured-provider", text: "We can figure out the problem together.", correctionMode: false, fetcher });
+    assert.equal(proposeCalls, 2);
+    assert.equal(typeof proposeChoices[0], "object");
+    assert.equal(proposeChoices[1], "auto");
+    assert.equal(store.evidence().some(event => event.kind === "spontaneous_production"), true);
+    assert.equal(store.getSubmission("structured-provider").evidenceDone, true);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});

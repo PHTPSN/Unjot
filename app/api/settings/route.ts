@@ -16,17 +16,31 @@ export async function PATCH(request: Request) {
   try {
     const store = learnerStore();
     const current = resolveAppSettings(process.env, store.appSettings() ?? undefined);
-    store.saveAppSettings({
-      provider: body.provider,
-      model: body.model,
-      apiKey: body.apiKey.trim() || current.apiKey,
-      baseUrl: body.baseUrl,
-      language: body.language,
-    });
+    store.saveInterfaceLanguage(body.language);
+    const environment = resolveAppSettings(process.env);
+    const matchesEnvironment = body.provider.trim() === environment.provider
+      && body.model.trim() === environment.model
+      && body.baseUrl.trim().replace(/\/+$/, "") === environment.baseUrl
+      && !body.apiKey.trim();
+    if (!matchesEnvironment) {
+      store.saveAppSettings({
+        provider: body.provider,
+        model: body.model,
+        apiKey: body.apiKey.trim() || current.apiKey,
+        baseUrl: body.baseUrl,
+        language: body.language,
+      });
+    }
     return Response.json(publicSettings());
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Invalid application settings." }, { status: error instanceof StoreError ? error.status : 400 });
   }
+}
+
+export async function DELETE() {
+  const store = learnerStore();
+  store.clearAppSettings();
+  return Response.json(publicSettings());
 }
 
 function publicSettings() {
@@ -38,9 +52,10 @@ function publicSettings() {
     provider: current.provider,
     model: current.model,
     baseUrl: current.baseUrl,
-    language: current.language,
+    language: store.interfaceLanguage() ?? current.language,
     apiKeyConfigured: Boolean(current.apiKey),
     configured: result.configured,
+    settingsSource: saved ? "saved" : "environment",
   };
 }
 

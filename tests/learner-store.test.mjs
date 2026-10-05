@@ -53,3 +53,52 @@ test("history is bounded and unfinished learner turns remain visible", async () 
     assert.equal(store.pending()?.id, "submission-1");
   } finally { cleanup(); }
 });
+
+test("unfinished submissions are scoped to their conversation", () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const firstConversationId = store.defaultConversationId();
+    const secondConversationId = store.createConversation()?.id;
+    assert.ok(secondConversationId);
+    store.begin("submission-1", "hello", false, firstConversationId);
+    assert.equal(store.pending(firstConversationId)?.id, "submission-1");
+    assert.equal(store.pending(secondConversationId), null);
+    assert.doesNotThrow(() => store.begin("submission-2", "another conversation", false, secondConversationId));
+    assert.equal(store.pending(secondConversationId)?.id, "submission-2");
+  } finally { cleanup(); }
+});
+
+test("pending status distinguishes active processing from a retryable submission", () => {
+  const { store, cleanup } = tempStore();
+  try {
+    store.begin("submission-1", "hello", false);
+    assert.equal(store.pendingStatus()?.processing, false);
+    const owner = store.claim("submission-1");
+    assert.equal(store.pendingStatus()?.processing, true);
+    store.release("submission-1", owner);
+    assert.equal(store.pendingStatus()?.processing, false);
+    assert.equal(store.pending()?.id, "submission-1");
+  } finally { cleanup(); }
+});
+
+test("conversation turns restore in chronological order after multiple completed replies", () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const conversationId = store.defaultConversationId();
+    for (const [index, text] of ["first", "second"].entries()) {
+      const id = `submission-${index + 1}`;
+      const submission = store.begin(id, text, false, conversationId);
+      const owner = store.claim(id);
+      const assistant = {
+        id: `assistant-${index + 1}`, conversationId, sequence: 0, role: "assistant",
+        contextId: submission.turn.contextId, text: `reply ${index + 1}`,
+        occurredAt: submission.turn.occurredAt, suppliedItemIds: [], correctionMode: false, correction: null,
+      };
+      store.finish(id, owner, { text: assistant.text, correction: null, lookupResults: [] }, assistant, []);
+      store.release(id, owner);
+    }
+    assert.deepEqual(store.conversationTurns(conversationId).map(turn => turn.id), [
+      "submission-1", "assistant-1", "submission-2", "assistant-2",
+    ]);
+  } finally { cleanup(); }
+});

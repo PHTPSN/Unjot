@@ -13,6 +13,7 @@ type PublicSettings = {
   language: Language;
   apiKeyConfigured: boolean;
   configured: boolean;
+  settingsSource: "saved" | "environment";
 };
 type ArchivedConversation = { id: string; title: string; updatedAt: string };
 
@@ -24,8 +25,16 @@ const copy = {
     apiKey: "API Key",
     baseUrl: "Base URL",
     connection: "连接状态",
-    connected: "已连接",
-    disconnected: "未连接",
+    connected: "已配置",
+    disconnected: "未配置",
+    configurationSource: "配置来源",
+    savedSource: "前端保存的设置",
+    environmentSource: ".env 环境配置",
+    configurationHelp: "前端保存的模型设置会覆盖 .env。若要让 .env 生效，请移除覆盖项；修改 .env 后还需要重启服务器。",
+    useEnvironment: "使用 .env 配置",
+    resettingEnvironment: "正在重置…",
+    environmentApplied: "已移除前端覆盖，当前使用 .env 配置。",
+    environmentResetError: "无法切换到 .env 配置。",
     language: "界面语言",
     archived: "已归档会话",
     noArchived: "没有已归档会话",
@@ -56,6 +65,12 @@ const copy = {
     savePreferencesError: "无法保存回复偏好。",
     restoreError: "无法恢复会话。",
     deleteError: "无法删除会话。",
+    clearData: "清空用户数据",
+    clearDataDescription: "永久删除所有对话、项目、学习 evidence、回复偏好和前端保存的模型配置。.env 与内置 WordNet 数据会保留。",
+    clearDataButton: "清空所有数据",
+    clearingData: "正在清空…",
+    clearDataWarning: "要永久清空所有用户数据吗？所有对话、项目、学习 evidence、回复偏好和前端保存的模型配置（包括 API Key）都会被删除，且无法撤销。.env 与内置 WordNet 数据不会被删除。",
+    clearDataError: "无法清空用户数据。",
   },
   en: {
     settings: "Settings",
@@ -64,8 +79,16 @@ const copy = {
     apiKey: "API Key",
     baseUrl: "Base URL",
     connection: "Connection",
-    connected: "Connected",
-    disconnected: "Not connected",
+    connected: "Configured",
+    disconnected: "Not configured",
+    configurationSource: "Configuration source",
+    savedSource: "Frontend-saved settings",
+    environmentSource: ".env environment settings",
+    configurationHelp: "Frontend-saved model settings override .env. Remove the override to use .env, and restart the server after changing the environment file.",
+    useEnvironment: "Use .env configuration",
+    resettingEnvironment: "Resetting…",
+    environmentApplied: "Frontend override removed. The app is now using .env configuration.",
+    environmentResetError: "Could not switch to .env configuration.",
     language: "Interface language",
     archived: "Archived conversations",
     noArchived: "No archived conversations",
@@ -96,6 +119,12 @@ const copy = {
     savePreferencesError: "Could not save response preferences.",
     restoreError: "Could not restore conversation.",
     deleteError: "Could not delete conversation.",
+    clearData: "Clear user data",
+    clearDataDescription: "Permanently deletes all conversations, projects, learning evidence, response preferences, and frontend-saved model settings. Your .env file and bundled WordNet data are kept.",
+    clearDataButton: "Clear all data",
+    clearingData: "Clearing…",
+    clearDataWarning: "Permanently clear all user data? All conversations, projects, learning evidence, response preferences, and frontend-saved model settings (including the API key) will be deleted. This cannot be undone. Your .env file and bundled WordNet data will not be deleted.",
+    clearDataError: "Could not clear user data.",
   },
 } as const;
 
@@ -106,6 +135,7 @@ const emptySettings: PublicSettings = {
   language: "en",
   apiKeyConfigured: false,
   configured: false,
+  settingsSource: "environment",
 };
 
 export default function SettingsPage() {
@@ -120,6 +150,11 @@ export default function SettingsPage() {
   const [preferencesMessage, setPreferencesMessage] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [testMessage, setTestMessage] = useState("");
+  const [configurationBusy, setConfigurationBusy] = useState(false);
+  const [configurationMessage, setConfigurationMessage] = useState("");
+  const [dataBusy, setDataBusy] = useState(false);
+  const [dataMessage, setDataMessage] = useState("");
+  const clearInProgress = useRef(false);
   const lastSaved = useRef("");
   const text = copy[settings.language];
   useEffect(() => { document.documentElement.lang = settings.language === "zh" ? "zh-CN" : "en"; }, [settings.language]);
@@ -196,6 +231,24 @@ export default function SettingsPage() {
     finally { setTestBusy(false); }
   }
 
+  async function useEnvironmentConfiguration() {
+    if (configurationBusy || settings.settingsSource === "environment") return;
+    setConfigurationBusy(true); setConfigurationMessage("");
+    try {
+      const response = await fetch("/api/settings", { method: "DELETE" });
+      const value = await response.json() as PublicSettings & { error?: string };
+      if (!response.ok) throw new Error(value.error || text.environmentResetError);
+      setApiKey("");
+      setSettings(value);
+      lastSaved.current = signature(value, "");
+      setConfigurationMessage(text.environmentApplied);
+    } catch {
+      setConfigurationMessage(text.environmentResetError);
+    } finally {
+      setConfigurationBusy(false);
+    }
+  }
+
   async function restoreConversation(id: string) {
     setWorkspaceBusy(true); setWorkspaceError("");
     try {
@@ -222,11 +275,32 @@ export default function SettingsPage() {
     finally { setWorkspaceBusy(false); }
   }
 
+  async function clearUserData() {
+    if (dataBusy || !window.confirm(text.clearDataWarning)) return;
+    clearInProgress.current = true;
+    setDataBusy(true); setDataMessage("");
+    try {
+      const response = await fetch("/api/data", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmation: "CLEAR_USER_DATA" }),
+      });
+      const value = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(settings.language === "zh" ? text.clearDataError : value.error || text.clearDataError);
+      window.location.replace("/");
+    } catch (cause) {
+      clearInProgress.current = false;
+      setDataMessage(settings.language === "zh" ? text.clearDataError : cause instanceof Error ? cause.message : text.clearDataError);
+      setDataBusy(false);
+    }
+  }
+
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || dataBusy || clearInProgress.current) return;
     const currentSignature = signature(settings, apiKey);
     if (currentSignature === lastSaved.current) return;
     const timeout = window.setTimeout(() => {
+      if (clearInProgress.current) return;
       void fetch("/api/settings", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -235,11 +309,11 @@ export default function SettingsPage() {
         const value = await response.json() as PublicSettings & { error?: string };
         if (!response.ok) throw new Error(value.error);
         lastSaved.current = currentSignature;
-        setSettings(current => ({ ...current, apiKeyConfigured: value.apiKeyConfigured, configured: value.configured }));
+        setSettings(current => ({ ...current, apiKeyConfigured: value.apiKeyConfigured, configured: value.configured, settingsSource: value.settingsSource }));
       }).catch(() => setSettings(current => ({ ...current, configured: false })));
     }, 600);
     return () => window.clearTimeout(timeout);
-  }, [apiKey, loaded, settings]);
+  }, [apiKey, dataBusy, loaded, settings]);
 
   return (
     <main className="settings-shell">
@@ -252,6 +326,16 @@ export default function SettingsPage() {
         <h1>{text.settings}</h1>
 
         <div className="settings-card">
+          <div className="configuration-note">
+            <div>
+              <strong>{text.configurationSource}: {settings.settingsSource === "saved" ? text.savedSource : text.environmentSource}</strong>
+              <p>{text.configurationHelp}</p>
+            </div>
+            <button type="button" disabled={configurationBusy || settings.settingsSource === "environment"} onClick={() => void useEnvironmentConfiguration()}>
+              {configurationBusy ? text.resettingEnvironment : text.useEnvironment}
+            </button>
+          </div>
+          {configurationMessage && <p className="configuration-message" role="status">{configurationMessage}</p>}
           <label>
             <span>{text.provider}</span>
             <input value={settings.provider} onChange={event => setSettings(current => ({ ...current, provider: event.target.value }))} />
@@ -310,6 +394,15 @@ export default function SettingsPage() {
               <div><button type="button" disabled={workspaceBusy} onClick={() => void restoreConversation(conversation.id)}>{text.restore}</button><button className="danger" type="button" disabled={workspaceBusy} onClick={() => void deleteConversation(conversation)}>{text.delete}</button></div>
             </div>
           ))}
+        </div>
+
+        <div className="settings-card danger-zone">
+          <div>
+            <h2>{text.clearData}</h2>
+            <p>{text.clearDataDescription}</p>
+          </div>
+          <button type="button" disabled={dataBusy} onClick={() => void clearUserData()}>{dataBusy ? text.clearingData : text.clearDataButton}</button>
+          {dataMessage && <p className="danger-message" role="alert">{dataMessage}</p>}
         </div>
       </section>
     </main>

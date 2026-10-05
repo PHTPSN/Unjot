@@ -32,17 +32,15 @@ export async function sendLearningTurn(options: { store: LearnerStore; graph: Le
     }
     const reply = responseResult[0].value;
     let evidenceDecisions: Awaited<ReturnType<typeof evaluateTurn>> = [];
-    const evidenceStatus = await Promise.race([
-      evidenceLane.then(decisions => ({ done: true as const, decisions })).catch(error => ({ done: true as const, error })),
-      Promise.resolve({ done: false as const }),
-    ]);
-    if (evidenceStatus.done && !("error" in evidenceStatus)) {
+    // Both lanes start together, but request-scoped runtimes cannot guarantee that an
+    // unawaited Evidence promise will survive after the HTTP response is published.
+    const evidenceStatus = await evidenceLane.then(decisions => ({ decisions })).catch(error => ({ error }));
+    if (!("error" in evidenceStatus)) {
       evidenceDecisions = evidenceStatus.decisions;
       if (!submission.evidenceDone) submission = store.accept(submission.id, owner, evidenceDecisions);
-    } else if (evidenceStatus.done && "error" in evidenceStatus) {
-      try { store.recordStage(submission.id, owner, "evidence_committed", "retryable_error", { reason: "model_unavailable" }); } catch { /* response publication remains independent */ }
     } else {
-      void evidenceLane.then(decisions => store.commitEvidence(submission.id, decisions)).catch(() => undefined);
+      const reason = evidenceStatus.error instanceof Error ? evidenceStatus.error.message.slice(0, 500) : "model_unavailable";
+      try { store.recordStage(submission.id, owner, "evidence_committed", "retryable_error", { reason }); } catch { /* response publication remains independent */ }
     }
     const assistant: ConversationTurn = { id: randomUUID(), conversationId: submission.turn.conversationId, sequence: submission.turn.sequence + 1,
       role: "assistant", contextId: submission.turn.contextId, text: reply.text, occurredAt: new Date().toISOString(), suppliedItemIds: [],
