@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { InterfaceLanguageProvider } from "./use-interface-language.ts";
+import { WorkspaceSidebarStateProvider } from "./workspace-sidebar-state.ts";
 
 export const metadata: Metadata = {
   title: "Unjot | Conversation",
@@ -9,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><InterfaceLanguageProvider><WorkspaceSidebarStateProvider>{children}</WorkspaceSidebarStateProvider></InterfaceLanguageProvider></body>
     </html>
   );
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { MessageSquarePlus, MessageSquareText } from "lucide-react";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { WorkspaceSidebar } from "../../workspace-sidebar.tsx";
 import { localized, useInterfaceLanguage } from "../../use-interface-language.ts";
 import { UnjotMark } from "../../unjot-mark.tsx";
@@ -13,6 +14,7 @@ type Workspace = { projects: Project[]; conversations: Conversation[] };
 
 export default function ProjectPage() {
   const params = useParams<{ projectId: string }>();
+  const router = useRouter();
   const projectId = params.projectId;
   const [workspace, setWorkspace] = useState<Workspace>({ projects: [], conversations: [] });
   const [loaded, setLoaded] = useState(false);
@@ -39,7 +41,7 @@ export default function ProjectPage() {
       const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "conversation", projectId }) });
       const body = await response.json() as { conversation?: Conversation; error?: string };
       if (!response.ok || !body.conversation) throw new Error(body.error || text.create);
-      window.location.href = `/?conversationId=${encodeURIComponent(body.conversation.id)}`;
+      router.push(`/?conversationId=${encodeURIComponent(body.conversation.id)}`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : text.create); setBusy(false); }
   }
 
@@ -64,7 +66,7 @@ export default function ProjectPage() {
               <button type="button" disabled={busy} onClick={() => void createConversation()}><MessageSquarePlus size={16} />{text.newConversation}</button>
             </div>
             <div className="project-conversation-list">
-              {conversations.map(conversation => <a href={`/?conversationId=${encodeURIComponent(conversation.id)}`} key={conversation.id}><MessageSquareText size={16} /><span>{conversation.title}</span></a>)}
+              {conversations.map(conversation => <Link href={`/?conversationId=${encodeURIComponent(conversation.id)}`} key={conversation.id}><MessageSquareText size={16} /><span>{conversation.title}</span></Link>)}
             </div>
           </>
         )}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PREFERENCE_BOUNDS, type ResponsePreferences } from "../../packages/protocol/src/comprehension.ts";
 import { UnjotMark } from "../unjot-mark.tsx";
+import { useSetInterfaceLanguage } from "../use-interface-language.ts";
 import "./settings.css";
 
 type Language = "zh" | "en";
@@ -109,6 +110,7 @@ const emptySettings: PublicSettings = {
 };
 
 export default function SettingsPage() {
+  const setInterfaceLanguage = useSetInterfaceLanguage();
   const [settings, setSettings] = useState<PublicSettings>(emptySettings);
   const [apiKey, setApiKey] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -134,6 +136,7 @@ export default function SettingsPage() {
       .then(value => {
         if (!active) return;
         setSettings(value);
+        setInterfaceLanguage(value.language);
         lastSaved.current = signature(value, "");
         setLoaded(true);
       })
@@ -284,8 +287,8 @@ export default function SettingsPage() {
         <div className="settings-card language-card">
           <span>{text.language}</span>
           <div className="language-switch" role="group" aria-label={text.language}>
-            <button className={settings.language === "zh" ? "active" : ""} type="button" onClick={() => setSettings(current => ({ ...current, language: "zh" }))}>中文</button>
-            <button className={settings.language === "en" ? "active" : ""} type="button" onClick={() => setSettings(current => ({ ...current, language: "en" }))}>English</button>
+            <button className={settings.language === "zh" ? "active" : ""} type="button" onClick={() => { setSettings(current => ({ ...current, language: "zh" })); setInterfaceLanguage("zh"); }}>中文</button>
+            <button className={settings.language === "en" ? "active" : ""} type="button" onClick={() => { setSettings(current => ({ ...current, language: "en" })); setInterfaceLanguage("en"); }}>English</button>
           </div>
         </div>
 
